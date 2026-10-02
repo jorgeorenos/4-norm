@@ -10,7 +10,7 @@ assert(norm_4([1, 2]) == norm_4([1; 2]));
 assert(isfinite(norm_4([1e200; 1e200])));
 assert(norm_4([1e-200; 1e-200]) > 0);
 
-opts = struct('NumRandomStarts', 3, 'MaxIterations', 100);
+opts = struct('NumRandomStarts', 20, 'MaxIterations', 100);
 for n = [1 2 5]
     [value, x, info] = compute_induced_norm(eye(n), @norm_4, opts);
     assert(abs(value - 1) < 1e-12);
@@ -28,7 +28,7 @@ for n = [2 5 10]
     assert(isfinite(estimate) && abs(estimate - norm_4(Qhaar*x)) < 1e-12);
     assert(abs(norm_4(x) - 1) < 1e-12);
     assert(estimate >= 1-1e-12 && estimate <= n^(1/4)+1e-12);
-    assert(diagnostics.numStarts == n + opts.NumRandomStarts);
+    assert(diagnostics.numStarts == opts.NumRandomStarts);
     assert(isfinite(diagnostics.bestStationarityResidual));
 end
 rng(42,'twister');
@@ -51,7 +51,7 @@ stateBefore = rng;
 compute_induced_norm(Q1, @norm_4, opts);
 stateAfter = rng;
 assert(~isequal(stateBefore.State, stateAfter.State));
-short = struct('NumRandomStarts', 0, 'MaxIterations', 1, ...
+short = struct('NumRandomStarts', 1, 'MaxIterations', 1, ...
     'NormTolerance', 1e-30, 'StationarityTolerance', 1e-30);
 lastwarn('');
 [~, ~, limited] = compute_induced_norm(Q, @norm_4, short);
@@ -65,6 +65,8 @@ assert_error(@() compute_induced_norm(eye(2), @norm_4, struct('Bad',1)), ...
     'compute_induced_norm:UnknownOption');
 assert_error(@() compute_induced_norm(eye(2), @norm_4, ...
     struct('NumRandomStarts',-1)), 'compute_induced_norm:InvalidCount');
+assert_error(@() compute_induced_norm(eye(2), @norm_4, ...
+    struct('NumRandomStarts',0)), 'compute_induced_norm:InvalidCount');
 assert_error(@() compute_induced_norm(eye(2), @norm_4, ...
     struct('NormTolerance',0)), 'compute_induced_norm:InvalidTolerance');
 assert_error(@() compute_induced_norm(eye(2), @(x) 0, opts), ...

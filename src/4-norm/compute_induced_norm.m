@@ -23,7 +23,7 @@ function [qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options)
         error('compute_induced_norm:NotSO', ...
             'Q must belong to SO(n) within tolerance %.3e.', matrixTolerance);
     end
-    defaults = struct('NumRandomStarts', 100, 'MaxIterations', 1000, ...
+    defaults = struct('NumRandomStarts', 50, 'MaxIterations', 1000, ...
         'NormTolerance', 1e-10, 'StationarityTolerance', 1e-8, ...
         'FeasibilityTolerance', 1e-12, 'StoreHistory', false);
     if ~isstruct(options) || ~isscalar(options)
@@ -40,10 +40,10 @@ function [qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options)
         defaults.(name) = options.(name);
     end
     options = defaults;
-    if ~valid_integer(options.NumRandomStarts, 0) || ...
+    if ~valid_integer(options.NumRandomStarts, 1) || ...
             ~valid_integer(options.MaxIterations, 1)
         error('compute_induced_norm:InvalidCount', ...
-            'NumRandomStarts must be a nonnegative integer and MaxIterations a positive integer.');
+            'NumRandomStarts and MaxIterations must be positive integers.');
     end
     tolerances = {'NormTolerance', 'StationarityTolerance', 'FeasibilityTolerance'};
     for j = 1:numel(tolerances)
@@ -59,19 +59,12 @@ function [qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options)
             'StoreHistory must be a logical scalar.');
     end
 
-    numStarts = n + options.NumRandomStarts;
+    numStarts = options.NumRandomStarts;
     starts = zeros(n, numStarts);
-    for j = 1:n
-        z = Q(j,:).';
-        scale = checked_norm(normHandle, z, 'structured start');
-        starts(:,j) = z / scale;
-    end
-    if options.NumRandomStarts > 0
-        randomStarts = generate_unit_l4_vectors(n, options.NumRandomStarts, 'random');
-        for j = 1:options.NumRandomStarts
-            z = randomStarts(:,j);
-            starts(:,n+j) = z / checked_norm(normHandle, z, 'random start');
-        end
+    randomStarts = generate_unit_l4_vectors(n, numStarts, 'random');
+    for j = 1:numStarts
+        z = randomStarts(:,j);
+        starts(:,j) = z / checked_norm(normHandle, z, 'random start');
     end
 
     wantFullInfo = nargout >= 3;

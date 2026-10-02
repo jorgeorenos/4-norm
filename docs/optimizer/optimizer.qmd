@@ -143,17 +143,7 @@ El método implementado es una **iteración de potencia generalizada con multini
 
 ### Esquema de multinicio
 
-Se lanzan varias trayectorias desde puntos iniciales distintos para explorar múltiples cuencas de atracción:
-
-1. **Inicios estructurados**: para cada $i = 1, \dots, n$, se toma la $i$-ésima columna de $Q^T$ (es decir, $Q^T e_i$) y se normaliza a norma 4 unitaria:
-   $$
-   x_0^{(i)} = \frac{Q^T e_i}{\|Q^T e_i\|_4}.
-   $$
-   Estos inicios explotan la estructura de $Q$ y suelen tener amplitudes iniciales $1 / \|Q^T e_i\|_4$.
-
-2. **Inicios aleatorios**: se generan $N_{\text{rand}}$ direcciones gaussianas normalizadas a $S_4$ mediante `generate_unit_l4_vectors`.
-
-En total se ejecutan $n + N_{\text{rand}}$ trayectorias independientes. La matriz $Q$ permanece fija durante todo el proceso.
+Se lanzan varias trayectorias desde puntos iniciales distintos para explorar múltiples cuencas de atracción. Se generan $N_{\text{rand}}$ direcciones gaussianas normalizadas a $S_4$ mediante `generate_unit_l4_vectors`; no se añaden inicios estructurados derivados de $Q$. En total se ejecutan exactamente $N_{\text{rand}}$ trayectorias independientes. La matriz $Q$ permanece fija durante todo el proceso.
 
 ### Iteración de potencia generalizada
 
