@@ -2,7 +2,7 @@
 
 Este proyecto se creó para explorar los componentes del número de condición bajo la norma 4.
 
-El interés matricial corresponde a la norma inducida 4. Como motivación, para una matriz invertible se tiene \(\kappa_4(A)=\lVert A\rVert_4\lVert A^{-1}\rVert_4\). El proyecto estima \(\lVert Q\rVert_4\) para \(Q\in SO(n)\), sin certificar el máximo global ni calcular todavía el número de condición o una Q óptima.
+El interés matricial corresponde a la norma inducida 4. Como motivación, para una matriz invertible se tiene $\(\kappa_4(A)=\lVert A\rVert_4\lVert A^{-1}\rVert_4\)$. El proyecto estima $\(\lVert Q\rVert_4\)$ para $\(Q\in SO(n)\)$, sin certificar el máximo global ni calcular todavía el número de condición o una Q óptima.
 
 ## Alcance actual
 
