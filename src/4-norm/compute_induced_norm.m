@@ -23,7 +23,7 @@ function [qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options)
         error('compute_induced_norm:NotSO', ...
             'Q must belong to SO(n) within tolerance %.3e.', matrixTolerance);
     end
-    defaults = struct('NumRandomStarts', 50, 'MaxIterations', 1000, ...
+    defaults = struct('NumRandomStarts', 100, 'MaxIterations', 1000, ...
         'NormTolerance', 1e-10, 'StationarityTolerance', 1e-8, ...
         'FeasibilityTolerance', 1e-12, 'StoreHistory', false);
     if ~isstruct(options) || ~isscalar(options)
@@ -74,40 +74,82 @@ function [qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options)
         end
     end
 
-    info.method = 'generalized power method with multiple starts';
-    info.isEstimate = true;
-    info.numStarts = numStarts;
-    info.numRandomStarts = options.NumRandomStarts;
-    info.startValues = NaN(1,numStarts);
-    info.startConverged = false(1,numStarts);
-    info.startTerminationReasons = cell(1,numStarts);
-    if options.StoreHistory
-        info.histories = cell(1,numStarts);
-    end
-    info.theoreticalLowerBound = 1;
-    info.theoreticalUpperBound = n^(1/4);
+    wantFullInfo = nargout >= 3;
+    lowerBound = 1;
+    upperBound = n^(1/4);
     qNorm4 = -Inf;
     xBest = [];
-    for j = 1:numStarts
-        [candidate, x, runInfo] = power_norm4_single_start( ...
-            Q, normHandle, starts(:,j), options);
-        info.startValues(j) = runInfo.startValue;
-        info.startConverged(j) = runInfo.converged;
-        info.startTerminationReasons{j} = runInfo.terminationReason;
-        if options.StoreHistory
-            info.histories{j} = runInfo.history;
+    bestStartIndex = NaN;
+    bestConverged = false;
+    bestTerminationReason = '';
+    bestIterations = NaN;
+    bestStationarityResidual = NaN;
+    bestFeasibilityError = NaN;
+
+    % @norm_4 has a known column-wise implementation, so all independent
+    % starts can share dense matrix products.  Other equivalent handles
+    % retain the scalar path: MATLAB cannot in general apply them to a
+    % matrix of columns without changing their contract.
+    useVectorizedKernel = strcmp(func2str(normHandle), 'norm_4');
+    if useVectorizedKernel
+        kernelOptions = options;
+        if ~wantFullInfo
+            kernelOptions.StoreHistory = false;
         end
-        if isfinite(candidate) && isfinite(runInfo.feasibilityError) && ...
-                runInfo.feasibilityError <= options.FeasibilityTolerance && ...
-                candidate > qNorm4
-            qNorm4 = candidate;
-            xBest = x;
-            info.bestStartIndex = j;
-            info.bestConverged = runInfo.converged;
-            info.bestTerminationReason = runInfo.terminationReason;
-            info.bestIterations = runInfo.iterations;
-            info.bestStationarityResidual = runInfo.stationarityResidual;
-            info.bestFeasibilityError = runInfo.feasibilityError;
+        [candidates, candidateVectors, batchInfo] = power_norm4_multiple_starts( ...
+            Q, starts, kernelOptions, wantFullInfo);
+        for j = 1:numStarts
+            if isfinite(candidates(j)) && ...
+                    batchInfo.feasibilityErrors(j) <= options.FeasibilityTolerance && ...
+                    candidates(j) > qNorm4
+                qNorm4 = candidates(j);
+                xBest = candidateVectors(:,j);
+                bestStartIndex = j;
+                bestConverged = batchInfo.converged(j);
+                bestIterations = batchInfo.iterations(j);
+                bestFeasibilityError = batchInfo.feasibilityErrors(j);
+                if wantFullInfo
+                    bestTerminationReason = batchInfo.terminationReasons{j};
+                    bestStationarityResidual = batchInfo.stationarityResiduals(j);
+                else
+                    bestTerminationReason = termination_label(batchInfo.reasonCodes(j));
+                end
+            end
+        end
+    else
+        if wantFullInfo
+            startValues = NaN(1,numStarts);
+            startConverged = false(1,numStarts);
+            startTerminationReasons = cell(1,numStarts);
+            if options.StoreHistory
+                histories = cell(1,numStarts);
+            end
+        end
+        for j = 1:numStarts
+            [candidate, x, runInfo] = power_norm4_single_start( ...
+                Q, normHandle, starts(:,j), options);
+            if wantFullInfo
+                startValues(j) = runInfo.startValue;
+                startConverged(j) = runInfo.converged;
+                startTerminationReasons{j} = runInfo.terminationReason;
+                if options.StoreHistory
+                    histories{j} = runInfo.history;
+                end
+            end
+            if isfinite(candidate) && isfinite(runInfo.feasibilityError) && ...
+                    runInfo.feasibilityError <= options.FeasibilityTolerance && ...
+                    candidate > qNorm4
+                qNorm4 = candidate;
+                xBest = x;
+                bestStartIndex = j;
+                bestConverged = runInfo.converged;
+                bestTerminationReason = runInfo.terminationReason;
+                bestIterations = runInfo.iterations;
+                bestFeasibilityError = runInfo.feasibilityError;
+                if wantFullInfo
+                    bestStationarityResidual = runInfo.stationarityResidual;
+                end
+            end
         end
     end
     if isempty(xBest)
@@ -120,15 +162,44 @@ function [qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options)
             'The amplitude of the best vector does not match qNorm4.');
     end
     boundTolerance = 1e-12*max(1,n);
-    if qNorm4 < info.theoreticalLowerBound-boundTolerance || ...
-            qNorm4 > info.theoreticalUpperBound+boundTolerance
+    if qNorm4 < lowerBound-boundTolerance || ...
+            qNorm4 > upperBound+boundTolerance
         warning('compute_induced_norm:BoundAnomaly', ...
             'The estimate falls outside the theoretical bounds for SO(n).');
     end
-    if ~info.bestConverged
+    if ~bestConverged
         warning('compute_induced_norm:NotConverged', ...
             'The best candidate stopped due to %s after %d iterations.', ...
-            info.bestTerminationReason, info.bestIterations);
+            bestTerminationReason, bestIterations);
+    end
+    if wantFullInfo
+        info.method = 'generalized power method with multiple starts';
+        info.isEstimate = true;
+        info.numStarts = numStarts;
+        info.numRandomStarts = options.NumRandomStarts;
+        if useVectorizedKernel
+            info.startValues = batchInfo.startValues;
+            info.startConverged = batchInfo.converged;
+            info.startTerminationReasons = batchInfo.terminationReasons;
+            if options.StoreHistory
+                info.histories = batchInfo.histories;
+            end
+        else
+            info.startValues = startValues;
+            info.startConverged = startConverged;
+            info.startTerminationReasons = startTerminationReasons;
+            if options.StoreHistory
+                info.histories = histories;
+            end
+        end
+        info.theoreticalLowerBound = lowerBound;
+        info.theoreticalUpperBound = upperBound;
+        info.bestStartIndex = bestStartIndex;
+        info.bestConverged = bestConverged;
+        info.bestTerminationReason = bestTerminationReason;
+        info.bestIterations = bestIterations;
+        info.bestStationarityResidual = bestStationarityResidual;
+        info.bestFeasibilityError = bestFeasibilityError;
     end
 end
 
@@ -143,5 +214,18 @@ function value = checked_norm(normHandle, vector, label)
             ~isfinite(value) || value <= 0
         error('compute_induced_norm:InvalidHandleOutput', ...
             'normHandle(%s) must return a finite real scalar, positive for nonzero vectors.', label);
+    end
+end
+
+function label = termination_label(code)
+    switch code
+        case 1
+            label = 'maxIterations';
+        case 2
+            label = 'converged';
+        case 3
+            label = 'numericalDecrease';
+        otherwise
+            label = 'numericalFailure';
     end
 end

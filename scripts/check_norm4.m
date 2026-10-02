@@ -36,8 +36,17 @@ Q1 = haar_so(2);
 [a, xa] = compute_induced_norm(Q1, @norm_4, opts);
 rng(42,'twister');
 Q2 = haar_so(2);
-[b, xb] = compute_induced_norm(Q2, @(x) norm_4(x), opts);
+[b, xb] = compute_induced_norm(Q2, @norm_4, opts);
 assert(isequal(Q1,Q2) && isequal(a,b) && isequal(xa,xb));
+rng(42,'twister');
+Q3 = haar_so(2);
+[c, xc] = compute_induced_norm(Q3, @(x) norm_4(x), opts);
+assert(isequal(Q1,Q3) && abs(a-c) < 1e-12 && norm_4(xa-xc) < 1e-12);
+historyOptions = struct('NumRandomStarts', 2, 'MaxIterations', 100, ...
+    'StoreHistory', true);
+[~, ~, historyInfo] = compute_induced_norm(eye(2), @norm_4, historyOptions);
+assert(numel(historyInfo.histories) == historyInfo.numStarts && ...
+    all(cellfun(@(h) ~isempty(h), historyInfo.histories)));
 stateBefore = rng;
 compute_induced_norm(Q1, @norm_4, opts);
 stateAfter = rng;

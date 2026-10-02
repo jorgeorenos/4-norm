@@ -15,7 +15,12 @@ function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, op
     x = x0(:);
     xScale = checked_norm(normHandle, x, 'x0', true);
     x = x / xScale;
-    oldValue = checked_norm(normHandle, Q*x, 'initial Q*x', true);
+    y = Q*x;
+    oldValue = checked_norm(normHandle, y, 'initial Q*x', true);
+    % Keep the gradient-like quantity for the next iteration.  The old
+    % implementation recomputed both y and v immediately after having
+    % obtained them as yNew and vNew in the previous iteration.
+    v = Q'*(y.^3);
     value = oldValue;
     xHat = x;
     runInfo.startValue = oldValue;
@@ -27,8 +32,6 @@ function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, op
     end
 
     for k = 1:options.MaxIterations
-        y = Q*x;
-        v = Q'*(y.^3);
         u = sign(v).*abs(v).^(1/3);
         if any(~isfinite(u)) || ~any(u)
             runInfo.terminationReason = 'numericalFailure';
@@ -81,6 +84,8 @@ function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, op
             break;
         end
         x = xNew;
+        y = yNew;
+        v = vNew;
         oldValue = valueNew;
     end
 
