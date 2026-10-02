@@ -13,7 +13,7 @@ Con $f(x)=\|Qx\|_4^4$, la condición estacionaria sobre la esfera unitaria es $Q
 
 `normHandle` se pasa como segundo argumento a `compute_induced_norm` y `power_norm4_single_start`: normalizaciones, amplitudes y residuos usan ese handle. Debe implementar matemáticamente la norma vectorial 4, incluso si es un handle anónimo equivalente a `@norm_4`. El algoritmo cúbico no optimiza normas arbitrarias; las comprobaciones de tipo y salida del handle no demuestran el contrato matemático.
 
-Hay $n$ inicios estructurados $Q^Te_i/\|Q^Te_i\|_4$ y, por defecto, 50 direcciones gaussianas normalizadas generadas con `generate_unit_l4_vectors` y renormalizadas mediante el handle. La amplitud inicial estructurada es $1/\|Q^Te_i\|_4$. $Q$ permanece fija; el muestreo aleatorio consume el estado existente sin cambiar la semilla. Estos inicios no son uniformes sobre la superficie.
+Todos los inicios son direcciones gaussianas normalizadas generadas con `generate_unit_l4_vectors` y renormalizadas mediante el handle. Por defecto se usan 50 direcciones; `NumRandomStarts` es exactamente el número total de trayectorias. $Q$ permanece fija; el muestreo aleatorio consume el estado existente sin cambiar la semilla. Estos inicios no son uniformes sobre la superficie.
 
 ## Parada y resultados
 
@@ -31,7 +31,7 @@ $$
 
 Converge solo si conjuntamente el cambio relativo de amplitud ($10^{-10}$), el residuo ($10^{-8}$) y el error de factibilidad ($10^{-12}$) cumplen sus tolerancias. El límite predeterminado es 1000 iteraciones por inicio. Se conserva el mejor candidato factible evaluado aun si alcanza el límite; se advierte si el seleccionado no convergió. Los descensos apreciables se registran como anomalías numéricas.
 
-`info` incluye el mejor inicio, estado, iteraciones, residuo y factibilidad, además de amplitudes iniciales, estados y razones de terminación de cada inicio. `StoreHistory=true` añade amplitudes por inicio. `NumRandomStarts` puede ser cero; las opciones pueden pasarse parcialmente. Se verifica $Q$ en $SO(n)$ con tolerancia $10^{-12}\max(1,n)$ para ortogonalidad (Frobenius) y determinante; no se modifica $Q$. Las cotas $1\leq\|Q\|_4\leq n^{1/4}$ sirven para reportar anomalías, no para recortar resultados.
+`info` incluye el mejor inicio, estado, iteraciones, residuo y factibilidad, además de amplitudes iniciales, estados y razones de terminación de cada inicio. `StoreHistory=true` añade amplitudes por inicio. `NumRandomStarts` debe ser un entero positivo; las opciones pueden pasarse parcialmente. Se verifica $Q$ en $SO(n)$ con tolerancia $10^{-12}\max(1,n)$ para ortogonalidad (Frobenius) y determinante; no se modifica $Q$. Las cotas $1\leq\|Q\|_4\leq n^{1/4}$ sirven para reportar anomalías, no para recortar resultados.
 
 El script `example_norm4_2x2.m` contrasta la estimación con 10000 muestras angulares y refinamiento local periódico mediante `fminbnd`. Esta comparación tampoco certifica un máximo global: la malla finita puede omitir picos y el multinicio puede alcanzar estacionarios no globales. Las garantías para matrices de entradas no negativas no se transfieren a matrices Haar de signos mixtos. No se busca $Q$ óptima ni se minimiza el número de condición.
 
