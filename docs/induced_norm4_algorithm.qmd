@@ -1,0 +1,38 @@
+---
+title: "Estimación de la norma inducida 4"
+format: html
+lang: es
+---
+
+Para $Q$ real de $SO(n)$, la norma inducida se define por
+$\|Q\|_4=\max_{\|x\|_4=1}\|Qx\|_4$. No es la norma 4 de las entradas de $Q$, su norma de Frobenius ni la norma espectral. `norm_4` usa escalamiento para calcular la norma vectorial sin overflow/underflow innecesarios.
+
+## Potencia generalizada
+
+Con $f(x)=\|Qx\|_4^4$, la condición estacionaria sobre la esfera unitaria es $Q^T(Qx)^{\odot 3}=f(x)\,x^{\odot 3}$. Desde cada vector unitario, se calcula $y=Qx$, $v=Q^T(y^{\odot 3})$, $u=\operatorname{sign}(v)\,|v|^{\odot 1/3}$ y $x_{\text{nuevo}}=u/\|u\|_4$. Las potencias y la raíz cúbica son componente a componente; la raíz conserva el signo. Se mide $\|Qx_{\text{nuevo}}\|_4$ sin normalizar la imagen.
+
+`normHandle` se pasa como segundo argumento a `compute_induced_norm` y `power_norm4_single_start`: normalizaciones, amplitudes y residuos usan ese handle. Debe implementar matemáticamente la norma vectorial 4, incluso si es un handle anónimo equivalente a `@norm_4`. El algoritmo cúbico no optimiza normas arbitrarias; las comprobaciones de tipo y salida del handle no demuestran el contrato matemático.
+
+Hay $n$ inicios estructurados $Q^Te_i/\|Q^Te_i\|_4$ y, por defecto, 50 direcciones gaussianas normalizadas generadas con `generate_unit_l4_vectors` y renormalizadas mediante el handle. La amplitud inicial estructurada es $1/\|Q^Te_i\|_4$. $Q$ permanece fija; el muestreo aleatorio consume el estado existente sin cambiar la semilla. Estos inicios no son uniformes sobre la superficie.
+
+## Parada y resultados
+
+Después de cada actualización, el residuo relativo se calcula en el mismo vector:
+
+$$
+r = Q^T(Qx)^{\odot 3} - \|Qx\|_4^4 \, x^{\odot 3},
+$$
+
+dividido por
+
+$$
+\max\!\bigl(\|Q^T(Qx)^{\odot 3}\|_4 + \|Qx\|_4^4 \, \|x^{\odot 3}\|_4,\; \mathrm{realmin}\bigr).
+$$
+
+Converge solo si conjuntamente el cambio relativo de amplitud ($10^{-10}$), el residuo ($10^{-8}$) y el error de factibilidad ($10^{-12}$) cumplen sus tolerancias. El límite predeterminado es 1000 iteraciones por inicio. Se conserva el mejor candidato factible evaluado aun si alcanza el límite; se advierte si el seleccionado no convergió. Los descensos apreciables se registran como anomalías numéricas.
+
+`info` incluye el mejor inicio, estado, iteraciones, residuo y factibilidad, además de amplitudes iniciales, estados y razones de terminación de cada inicio. `StoreHistory=true` añade amplitudes por inicio. `NumRandomStarts` puede ser cero; las opciones pueden pasarse parcialmente. Se verifica $Q$ en $SO(n)$ con tolerancia $10^{-12}\max(1,n)$ para ortogonalidad (Frobenius) y determinante; no se modifica $Q$. Las cotas $1\leq\|Q\|_4\leq n^{1/4}$ sirven para reportar anomalías, no para recortar resultados.
+
+El script `example_norm4_2x2.m` contrasta la estimación con 10000 muestras angulares y refinamiento local periódico mediante `fminbnd`. Esta comparación tampoco certifica un máximo global: la malla finita puede omitir picos y el multinicio puede alcanzar estacionarios no globales. Las garantías para matrices de entradas no negativas no se transfieren a matrices Haar de signos mixtos. No se busca $Q$ óptima ni se minimiza el número de condición.
+
+Referencia: Nicholas J. Higham (1992), [Estimating the matrix p-norm](https://nhigham.com/wp-content/uploads/2023/09/high92e.pdf), *Numerische Mathematik* 62, 539–555.

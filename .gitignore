@@ -1,0 +1,28 @@
+# MATLAB
+*.asv
+*.m~
+*.mlx~
+slprj/
+
+# Editor backups
+*~
+*.swp
+*.swo
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# quarto generated files
+*.js
+*.css
+*.html
+*.woff
+*.pdf
+
+# Image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg

@@ -1,0 +1,19 @@
+# Registro de trabajo
+
+## 2026-09-30
+
+- Se inicializó la estructura del proyecto: funciones en `src`, ejemplo en `scripts` y documentación en `docs`.
+- Se implementó la normalización por columnas para la esfera unitaria de norma 4, incluido el modo angular bidimensional y la validación de entradas.
+- Se implementó el muestreo Haar en `SO(n)` mediante QR gaussiano con corrección de signos de `R` y ajuste final de determinante.
+- Se preparó el ejemplo reproducible con dos paneles, límites comunes calculados a partir de los datos y comprobaciones numéricas impresas en consola.
+- Se detectó MATLAB R2024b en `/usr/local/MATLAB/R2024b`. Se intentaron las comprobaciones para `n = 1, 2, 5, 10`, la reproducibilidad, las entradas inválidas y una llamada mínima `disp('hello')` mediante ejecución por lotes. El ejecutable terminó con código 1 y sin salida diagnóstica, de modo que ninguna comprobación se considera ejecutada ni se afirma compatibilidad verificada. La revisión estática confirmó que el ejemplo crea los dos paneles y que las funciones contienen las validaciones y fórmulas especificadas.
+
+## 2026-10-01
+
+- Se añadieron `src/norm_4.m`, `src/power_norm4_single_start.m` y `src/compute_induced_norm.m` para la estimación de la norma inducida 4 de Q fija en SO(n), con multinicio, validación, diagnósticos y advertencia de no convergencia. La estimación no certifica un máximo global.
+- Se añadieron `scripts/example_norm4_2x2.m`, `scripts/check_norm4.m` y `docs/induced_norm4_algorithm.md`; se actualizaron `AGENTS.md` y `README.md`. El ejemplo geométrico original no se modificó.
+- MATLAB R2024b Update 9 ejecutó el script de comprobación e imprimió `Comprobaciones básicas de norma 4: OK`: casos de identidad (n=1,2,5), permutación con signos, rotación de 45°, matrices Haar (n=2,5,10), handle anónimo equivalente, reproducibilidad y consumo del estado aleatorio, entradas inválidas y límite de iteraciones con advertencia esperada. Una ejecución previa del mismo script terminó con código 0; otras imprimieron OK pero el proceso falló al salir (`free(): chunks in smallbin corrupted`, timeout). No se interpreta el OK como prueba de salida limpia en esas ejecuciones.
+- El ejemplo de estimación imprimió 1.168679054667 como amplitud de potencia y referencia angular aproximada, con diferencia 4.441e-16, `bestConverged=true` y residuo 8.2440e-10. Una comprobación MATLAB de la figura encontró un eje y dos líneas (`CURVAS_OK`), pero el proceso gráfico falló al salir (código 137 tras error de memoria); no se certifica una ejecución gráfica limpia ni una inspección visual de la figura.
+- Se añadieron `src/spherical_amplitude.m` y `scripts/example_norm4_3x3.m`. El nuevo ejemplo fija una Q Haar en SO(3), estima su norma inducida 4 con multinicio y la contrasta con una cuadrícula esférica de 181 por 91 direcciones, seguida de refinamiento local desde las doce muestras de mayor amplitud. La figura contiene una superficie de \(S_4\) coloreada por amplitud, con marcadores para el máximo de referencia y el candidato de potencia.
+- MATLAB R2024b Update 9 imprimió para el ejemplo 3D `qNorm4 = 1.300283962530`, referencia esférica `1.300283962530` y diferencia `-2.220e-16`; las aserciones de normalización y presencia de exactamente un eje para la gráfica 3D pasaron. El proceso no terminó limpiamente: después de imprimir los resultados ocurrió `free(): chunks in smallbin corrupted` y alcanzó el tiempo límite. Por ello no se certifica una salida limpia ni una inspección visual de la figura.
+- Se reorganizó `src`: `norm_4.m`, `generate_unit_l4_vectors.m`, `power_norm4_single_start.m` y `compute_induced_norm.m` pasaron a `src/4-norm/`; `haar_so.m`, `angular_amplitude.m` y `spherical_amplitude.m` pasaron a `src/helpers/`. Los scripts agregan explícitamente ambos directorios al path de MATLAB.

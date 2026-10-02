@@ -1,0 +1,34 @@
+---
+title: "Geometría de la norma 4"
+format: html
+lang: es
+---
+
+Para un vector real columna $x\in\mathbb{R}^n$,
+
+$$
+\lVert x\rVert_4=\left(\sum_{j=1}^{n}|x_j|^4\right)^{1/4}.
+$$
+
+La esfera $S_4$ contiene los vectores de norma exactamente uno. La bola $B_4$ incluye además su interior, es decir, los vectores cuya norma es menor o igual que uno. El generador de este proyecto devuelve puntos de la superficie, no de la bola.
+
+## Generación de vectores
+
+El método `random` toma columnas gaussianas `Z = randn(n,N)` y las divide por su norma 4 columna a columna. Si una columna tuviera escala cero, se regenera antes de dividir. En dimensión uno aparecen los dos puntos posibles, `-1` y `+1`, con repeticiones permitidas.
+
+La normalización garantiza puntos en $S_4$, pero este procedimiento no es uniforme respecto al área superficial ni respecto a la medida de cono de la esfera de norma 4. No se denomina muestreo Haar; esa noción se reserva aquí para el grupo de matrices ortogonales.
+
+Para visualizar en dimensión dos, `angular` usa direcciones de ángulos igualmente espaciados en $[0,2\pi)$, sin repetir el extremo, y las normaliza. Las columnas quedan ordenadas para trazar un contorno cerrado. El espaciado angular no implica espaciado uniforme por longitud de arco, y un conjunto finito solo aproxima la curva.
+
+## Matrices Haar en SO(n)
+
+`haar_so` factoriza mediante QR una matriz gaussiana cuadrada. Corrige primero los signos de las columnas de `Q` según la diagonal de `R`, equivalente a elegir diagonal positiva en `R`; este paso produce la distribución Haar en $O(n)$. Si la diagonal contiene un cero exacto, la matriz gaussiana se regenera. Finalmente, si el determinante es negativo, invierte una columna fija para trasladar la muestra a $SO(n)$. Ese traslado desde las dos componentes de $O(n)$ conserva la invariancia Haar bajo multiplicación por elementos de $SO(n)$.
+
+Corregir solamente el determinante tras QR no es suficiente: la corrección de signos de `R` es esencial. En cambio, no se usa un escalar para alterar `Q`. En $SO(2)$, la matriz resultante es una rotación: conserva la geometría euclidiana, pero normalmente cambia normas 4. Los múltiplos de $\pi/2$ son casos especiales que sí hacen coincidir los contornos.
+
+Las comprobaciones de ortogonalidad y determinante en punto flotante verifican propiedades numéricas de una realización; no demuestran por sí solas la propiedad distribucional Haar.
+
+## Referencias
+
+- Francesco Mezzadri, [How to generate random matrices from the classical compact groups](https://arxiv.org/abs/math-ph/0609050).
+- MATLAB: [`qr`](https://www.mathworks.com/help/matlab/ref/qr.html), [`randn`](https://www.mathworks.com/help/matlab/ref/double.randn.html) y [`rng`](https://www.mathworks.com/help/matlab/ref/rng.html).
