@@ -29,19 +29,17 @@ fprintf('Computing induced 4-norms for %d matrices in SO(%d)...\n', ...
     numMatrices, n);
 totalTimer = tic;
 
+rotations = zeros(n, n, numMatrices);
 for k = 1:numMatrices
-    Q = haar_so(n);
-    for j = 1:numel(startCounts)
-        options = baseOptions;
-        options.NumRandomStarts = startCounts(j);
-        startTimer = tic;
-        norm4_norms.(fieldNames{j})(k) = ...
-            compute_induced_norm(Q, normHandle, options);
-        elapsedByStartCount(j) = elapsedByStartCount(j) + toc(startTimer);
-    end
-    if mod(k, 100) == 0
-        fprintf('  Completed %d / %d matrices\n', k, numMatrices);
-    end
+    rotations(:,:,k) = haar_so(n);
+end
+for j = 1:numel(startCounts)
+    options = baseOptions;
+    options.NumRandomStarts = startCounts(j);
+    startTimer = tic;
+    norm4_norms.(fieldNames{j}) = compute_induced_norm(rotations, normHandle, options);
+    elapsedByStartCount(j) = toc(startTimer);
+    fprintf('  Completed batch with %d random starts\n', startCounts(j));
 end
 
 totalElapsedTime = toc(totalTimer);
@@ -62,7 +60,7 @@ for j = 1:numel(startCounts)
 end
 fprintf('Total elapsed time: %.3f seconds\n', totalElapsedTime);
 
-% Common limits and bins make the six empirical distributions comparable.
+% Common limits and bins make the nine empirical distributions comparable.
 binEdges = linspace(1 - 1e-12, theoreticalUpperBound + 1e-12, 31);
 figure('Name', 'Induced 4-norm estimates in SO(9)');
 tiledlayout(3, 3, 'TileSpacing', 'compact', 'Padding', 'compact');

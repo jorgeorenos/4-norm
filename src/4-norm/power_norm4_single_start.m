@@ -1,7 +1,8 @@
-function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, options)
+function value = power_norm4_single_start(Q, normHandle, x0, options)
 %POWER_NORM4_SINGLE_START Generalized power iteration from one initial direction.
 %   The handle must mathematically represent the vector 4-norm; the cubic
-%   update is not valid for other vector norms.
+%   update is not valid for other vector norms. Returns only the best
+%   feasible amplitude (-Inf if no evaluated vector is feasible).
     if ~isa(normHandle, 'function_handle')
         error('power_norm4_single_start:InvalidHandle', ...
             'normHandle must be a function handle for the 4-norm.');
@@ -22,44 +23,31 @@ function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, op
     % obtained them as yNew and vNew in the previous iteration.
     v = Q'*(y.^3);
     value = oldValue;
-    xHat = x;
-    runInfo.startValue = oldValue;
-    runInfo.converged = false;
-    runInfo.terminationReason = 'maxIterations';
-    runInfo.iterations = 0;
-    if options.StoreHistory
-        runInfo.history = oldValue;
+    if abs(checked_norm(normHandle, x, 'x', true) - 1) > options.FeasibilityTolerance
+        value = -Inf;
     end
 
     for k = 1:options.MaxIterations
         u = sign(v).*abs(v).^(1/3);
         if any(~isfinite(u)) || ~any(u)
-            runInfo.terminationReason = 'numericalFailure';
             break;
         end
         uScale = checked_norm(normHandle, u, 'updated u', true);
         xNew = u / uScale;
         if any(~isfinite(xNew))
-            runInfo.terminationReason = 'numericalFailure';
             break;
         end
         yNew = Q*xNew;
         if any(~isfinite(yNew))
-            runInfo.terminationReason = 'numericalFailure';
             break;
         end
         valueNew = checked_norm(normHandle, yNew, 'Q*xNew', true);
         feasibilityError = abs(checked_norm(normHandle, xNew, 'xNew', true) - 1);
         if feasibilityError <= options.FeasibilityTolerance && valueNew > value
             value = valueNew;
-            xHat = xNew;
         end
-        runInfo.iterations = k;
-        if options.StoreHistory
-            runInfo.history(end+1) = valueNew;
-        end
+
         if valueNew < oldValue - 128*eps(max([1, abs(valueNew), abs(oldValue)]))
-            runInfo.terminationReason = 'numericalDecrease';
             break;
         end
         vNew = Q'*(yNew.^3);
@@ -68,7 +56,6 @@ function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, op
         residual = vNew - lambdaNew*xCube;
         if ~isfinite(lambdaNew) || any(~isfinite(vNew)) || ...
                 any(~isfinite(residual))
-            runInfo.terminationReason = 'numericalFailure';
             break;
         end
         denominator = max(checked_norm(normHandle, vNew, 'vNew', false) + ...
@@ -79,31 +66,12 @@ function [value, xHat, runInfo] = power_norm4_single_start(Q, normHandle, x0, op
         if relativeChange <= options.NormTolerance && ...
                 relativeResidual <= options.StationarityTolerance && ...
                 feasibilityError <= options.FeasibilityTolerance
-            runInfo.converged = true;
-            runInfo.terminationReason = 'converged';
             break;
         end
-        x = xNew;
-        y = yNew;
         v = vNew;
         oldValue = valueNew;
     end
 
-    % All diagnostics correspond to the candidate actually returned.
-    yBest = Q*xHat;
-    vBest = Q'*(yBest.^3);
-    lambdaBest = value^4;
-    xCubeBest = xHat.^3;
-    if all(isfinite(vBest)) && isfinite(lambdaBest)
-        bestResidual = vBest - lambdaBest*xCubeBest;
-        denominator = max(checked_norm(normHandle, vBest, 'vBest', false) + ...
-            abs(lambdaBest)*checked_norm(normHandle, xCubeBest, 'xHat.^3', true), realmin);
-        runInfo.stationarityResidual = ...
-            checked_norm(normHandle, bestResidual, 'final residual', false) / denominator;
-    else
-        runInfo.stationarityResidual = Inf;
-    end
-    runInfo.feasibilityError = abs(checked_norm(normHandle, xHat, 'xHat', true) - 1);
 end
 
 function value = checked_norm(normHandle, vector, label, requirePositive)

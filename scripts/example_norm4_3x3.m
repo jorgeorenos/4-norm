@@ -8,18 +8,11 @@ rng(42, 'twister');
 n = 3;
 Q = haar_so(n);
 normHandle = @norm_4;
-options = struct('NumRandomStarts', 100, 'MaxIterations', 1000, ...
-    'StoreHistory', true);
-[qNorm4, xBest, info] = compute_induced_norm(Q, normHandle, options);
+options = struct('NumRandomStarts', 100, 'MaxIterations', 1000);
+qNorm4 = compute_induced_norm(Q, normHandle, options);
 disp('Matrix Q in SO(3):');
 disp(Q);
 fprintf('Estimated induced 4-norm: %.12f\n', qNorm4);
-fprintf('4-norm of the candidate vector: %.12f\n', normHandle(xBest));
-fprintf('Amplitude of Q*xBest: %.12f\n', normHandle(Q*xBest));
-disp('Candidate vector:');
-disp(xBest);
-disp(info);
-
 % Independent comparison in dimension 3: spherical grid and local refinement.
 azimuthCount = 180;
 polarCount = 90;
@@ -69,16 +62,13 @@ hold on;
 plot3(xAngularBest(1), xAngularBest(2), xAngularBest(3), 'p', ...
     'Color', [0.85 0.33 0.10], 'MarkerFaceColor', [0.85 0.33 0.10], ...
     'MarkerSize', 12);
-plot3(xBest(1), xBest(2), xBest(3), 'o', 'Color', [0.10 0.10 0.10], ...
-    'MarkerFaceColor', [0.10 0.10 0.10], 'MarkerSize', 6);
 axis equal;
 grid on;
 xlabel('x_1');
 ylabel('x_2');
 zlabel('x_3');
-title('4-norm unit sphere colored by ||Qx||_4');
-legend('Spherical sample', 'Refined spherical maximum', ...
-    'Power-method candidate', 'Location', 'best');
+title(sprintf('4-norm unit sphere | induced norm estimate %.6f', qNorm4));
+legend('Spherical sample', 'Refined spherical maximum', 'Location', 'best');
 colorbar;
 view(3);
 hold off;
