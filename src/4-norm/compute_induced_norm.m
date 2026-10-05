@@ -6,6 +6,9 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
 %   Each matrix uses independent random starts; no global maximum is certified.
 %   MaxWorkingMemoryMB (default 128) controls the estimated page block size.
 %   @norm_4 supports column batches; vector-only equivalent handles also work.
+%   ScreenIterations > 0 is an optional approximate two-stage search: run
+%   every start briefly, then fully iterate only the NumFinalists strongest
+%   starts per matrix. Discarded starts may otherwise have won later.
     if nargin < 3
         options = struct();
     end
@@ -33,7 +36,8 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
     end
     defaults = struct('NumRandomStarts', 50, 'MaxIterations', 1000, ...
         'NormTolerance', 1e-10, 'StationarityTolerance', 1e-8, ...
-        'FeasibilityTolerance', 1e-12, 'MaxWorkingMemoryMB', 128);
+        'FeasibilityTolerance', 1e-12, 'MaxWorkingMemoryMB', 128, ...
+        'ScreenIterations', 0, 'NumFinalists', 3);
     if ~isstruct(options) || ~isscalar(options)
         error('compute_induced_norm:InvalidOptions', ...
             'options must be a scalar struct.');
@@ -49,9 +53,14 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
     end
     options = defaults;
     if ~valid_integer(options.NumRandomStarts, 1) || ...
-            ~valid_integer(options.MaxIterations, 1)
+            ~valid_integer(options.MaxIterations, 1) || ...
+            ~valid_integer(options.ScreenIterations, 0) || ...
+            ~valid_integer(options.NumFinalists, 1) || ...
+            (options.ScreenIterations > 0 && ...
+            (options.NumFinalists > options.NumRandomStarts || ...
+            options.ScreenIterations > options.MaxIterations))
         error('compute_induced_norm:InvalidCount', ...
-            'NumRandomStarts and MaxIterations must be positive integers.');
+            'Invalid start count, iteration count, or screening settings.');
     end
     tolerances = {'NormTolerance', 'StationarityTolerance', 'FeasibilityTolerance'};
     for j = 1:numel(tolerances)
@@ -87,9 +96,26 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
             zeroColumns = ~any(columns, 1);
         end
         starts = reshape(columns, n, options.NumRandomStarts, numel(indices));
-        candidates = power_norm4_multiple_starts(Q(:,:,indices), normHandle, starts, options);
-        candidates(~isfinite(candidates)) = -Inf;
-        estimates = max(candidates, [], 1);
+        if options.ScreenIterations == 0
+            candidates = power_norm4_multiple_starts(Q(:,:,indices), normHandle, starts, options);
+            candidates(~isfinite(candidates)) = -Inf;
+            estimates = max(candidates, [], 1);
+        else
+            screeningOptions = options;
+            screeningOptions.MaxIterations = options.ScreenIterations;
+            screened = power_norm4_multiple_starts( ...
+                Q(:,:,indices), normHandle, starts, screeningOptions);
+            screened(~isfinite(screened)) = -Inf;
+            [~, ranking] = sort(screened, 1, 'descend');
+            finalists = zeros(n, options.NumFinalists, numel(indices));
+            for page = 1:numel(indices)
+                finalists(:,:,page) = starts(:,ranking(1:options.NumFinalists,page),page);
+            end
+            refined = power_norm4_multiple_starts( ...
+                Q(:,:,indices), normHandle, finalists, options);
+            refined(~isfinite(refined)) = -Inf;
+            estimates = max(max(screened, [], 1), max(refined, [], 1));
+        end
         failed = find(~isfinite(estimates), 1);
         if ~isempty(failed)
             error('compute_induced_norm:NoCandidate', ...

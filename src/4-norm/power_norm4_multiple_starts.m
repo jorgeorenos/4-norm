@@ -22,6 +22,7 @@ function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
     active = true(1, numStarts, numMatrices);
     pageIndices = 1:numMatrices;
     values = -Inf(numStarts, numMatrices);
+    startIds = repmat(1:numStarts, 1, 1, numMatrices);
 
     for k = 1:options.MaxIterations
         u = sign(V).*abs(V).^(1/3);
@@ -81,7 +82,12 @@ function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
 
         keep = reshape(any(active, 2), 1, []);
         if any(~keep)
-            values(:,pageIndices(~keep)) = reshape(bestValues(:,:,~keep), numStarts, []);
+            for page = find(~keep)
+                validSlots = startIds(1,:,page) > 0;
+                positions = startIds(1,validSlots,page) + ...
+                    (pageIndices(page)-1)*numStarts;
+                values(positions) = bestValues(1,validSlots,page);
+            end
             pageIndices = pageIndices(keep);
             if isempty(pageIndices)
                 return;
@@ -91,9 +97,48 @@ function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
             oldValues = oldValues(:,:,keep);
             bestValues = bestValues(:,:,keep);
             active = active(:,:,keep);
+            startIds = startIds(:,:,keep);
+        end
+        % Discard inactive slots when all remaining pages have substantially
+        % fewer live starts. Preserve original start IDs for the output.
+        slots = size(active, 2);
+        if vectorized && slots > 1
+            counts = reshape(sum(active, 2), 1, []);
+            packedSlots = max(counts);
+            if packedSlots <= floor(0.75*slots)
+                pages = numel(pageIndices);
+                packedV = zeros(n, packedSlots, pages);
+                packedOld = zeros(1, packedSlots, pages);
+                packedBest = -Inf(1, packedSlots, pages);
+                packedIds = zeros(1, packedSlots, pages);
+                packedActive = false(1, packedSlots, pages);
+                for page = 1:pages
+                    validSlots = startIds(1,:,page) > 0;
+                    positions = startIds(1,validSlots,page) + ...
+                        (pageIndices(page)-1)*numStarts;
+                    values(positions) = bestValues(1,validSlots,page);
+                    live = find(active(1,:,page));
+                    count = numel(live);
+                    packedV(:,1:count,page) = V(:,live,page);
+                    packedOld(1,1:count,page) = oldValues(1,live,page);
+                    packedBest(1,1:count,page) = bestValues(1,live,page);
+                    packedIds(1,1:count,page) = startIds(1,live,page);
+                    packedActive(1,1:count,page) = true;
+                end
+                V = packedV;
+                oldValues = packedOld;
+                bestValues = packedBest;
+                startIds = packedIds;
+                active = packedActive;
+            end
         end
     end
-    values(:,pageIndices) = reshape(bestValues, numStarts, []);
+    for page = 1:numel(pageIndices)
+        validSlots = startIds(1,:,page) > 0;
+        positions = startIds(1,validSlots,page) + ...
+            (pageIndices(page)-1)*numStarts;
+        values(positions) = bestValues(1,validSlots,page);
+    end
 end
 
 function X = safe_directions(X, active, n)

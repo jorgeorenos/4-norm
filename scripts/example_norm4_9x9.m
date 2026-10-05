@@ -1,6 +1,8 @@
 % Compare the induced 4-norm estimate for 1000 random matrices in SO(9).
 % Each field of norm4_norms contains one estimate per matrix for a fixed
 % number of random starts. The same Q is used for every start count.
+% For 50 or more starts, screen each for up to four iterations and refine
+% the best three. Smaller groups retain full iteration to avoid screening bias.
 
 scriptDirectory = fileparts(mfilename('fullpath'));
 projectRoot = fileparts(scriptDirectory);
@@ -14,6 +16,9 @@ numMatrices = 1000;
 startCounts = [1, 10, 25, 50, 100, 250, 500, 750, 1000];
 normHandle = @norm_4;
 baseOptions = struct('MaxIterations', 1000, 'MaxWorkingMemoryMB', 128);
+screenIterations = 4;
+numFinalists = 3;
+screenMinStarts = 50;
 
 % MATLAB identifiers cannot start with a number, hence norm4_norms rather
 % than 4_norms. Each field is a numMatrices-by-1 vector.
@@ -33,6 +38,10 @@ for j = 1:numel(startCounts)
     fieldNames{j} = sprintf('starts%d', startCounts(j));
     options = baseOptions;
     options.NumRandomStarts = startCounts(j);
+    if startCounts(j) >= screenMinStarts
+        options.ScreenIterations = screenIterations;
+        options.NumFinalists = numFinalists;
+    end
     startTimer = tic;
     norm4_norms.(fieldNames{j}) = compute_induced_norm(rotations, normHandle, options);
     elapsedByStartCount(j) = toc(startTimer);
@@ -84,4 +93,5 @@ for j = 1:numel(startCounts)
 end
 
 sgtitle(sprintf(['Induced 4-norm estimates for %d matrices in SO(%d)\n' ...
-    'Same matrices, varying number of random starts'], numMatrices, n));
+    'Same matrices; screened estimates for %d or more starts'], ...
+    numMatrices, n, screenMinStarts));
