@@ -1,21 +1,20 @@
-%OPTIMIZER_CONVERGENCE Compara estimaciones multinicio de ||Q||_{4->4}.
-%   Se puede ejecutar desde cualquier directorio. Para cada matriz Haar Q,
-%   estima la norma inducida 4 con conjuntos anidados de inicios aleatorios.
-%   Al restablecer el estado aleatorio antes de cada estimacion, se reutilizan
-%   las primeras N direcciones de una misma secuencia, manteniendo Q fija.
-%   La estimacion con mas inicios es una referencia numerica finita;
-%   la brecha respecto de ella no certifica un maximo global.
-%   Los resultados quedan en rotations, norm_q_values, convergence_values,
-%   reference_values, relative_gaps y summary. Abre una figura de dos
-%   paneles y requiere unicamente MATLAB base.
+%OPTIMIZER_CONVERGENCE Compares multistart estimates of ||Q||_{4->4}.
+%   Can be run from any directory. For each Haar matrix Q, estimates the
+%   induced 4-norm using nested sets of random starting points. Resetting the
+%   random state before each estimate reuses the first N directions from the
+%   same sequence while keeping Q fixed. The estimate with the most starts is
+%   a finite numerical reference; the gap to it does not certify a global
+%   maximum. Results are stored in rotations, norm_q_values,
+%   convergence_values, reference_values, relative_gaps, and summary. Opens a
+%   two-panel figure and requires MATLAB base only.
 
-%% Localizar las funciones a partir de la ubicacion del script.
+%% Locate functions relative to the script location.
 scriptDirectory = fileparts(mfilename('fullpath'));
 projectRoot = fileparts(scriptDirectory);
 addpath(fullfile(projectRoot, 'src', '4-norm'));
 addpath(fullfile(projectRoot, 'src', 'helpers'));
 
-%% Configuracion.
+%% Configuration.
 DIMENSION = 9;
 N_MATRICES = 10;
 START_COUNTS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 750, 1000];
@@ -39,9 +38,9 @@ for matrix_index = 1:N_MATRICES
     Q = haar_so(DIMENSION);
     rotations(:, :, matrix_index) = Q;
 
-    % Una sola iteracion por lotes conserva las mismas direcciones iniciales
-    % para todos los conteos. Los mejores prefijos sustituyen las 11 llamadas
-    % separadas sin cambiar la matriz Q ni el estado de la secuencia aleatoria.
+    % A single batched iteration preserves the same starting directions for
+    % every start count. Best prefixes replace 11 separate calls without
+    % changing matrix Q or the state of the random sequence.
     starts = randn(DIMENSION, MAX_STARTS);
     zeroColumns = ~any(starts, 1);
     while any(zeroColumns)
@@ -53,7 +52,7 @@ for matrix_index = 1:N_MATRICES
     norm_q_values(matrix_index, :) = bestPrefix(START_COUNTS).';
 end
 
-% El mejor valor sobre conjuntos anidados no debe disminuir.
+% The best value over nested sets must not decrease.
 assert(all(all(diff(norm_q_values, 1, 2) >= -128*eps)), ...
     'Nested multistart induced-norm estimates must not decrease.');
 
@@ -78,8 +77,8 @@ summary = table(matrix_id, norm_q_values(:, reportStartIndex), ...
     'first_reference_tolerance_start_count'});
 disp(summary)
 
-%% Mostrar la estimacion acumulada y la brecha frente a la referencia.
-figure('Name', 'Convergencia multinicio de la norma inducida 4', 'Color', 'w');
+%% Plot the cumulative estimate and the gap to the reference.
+figure('Name', 'Multistart convergence of the induced 4-norm', 'Color', 'w');
 tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 
 nexttile
@@ -90,24 +89,24 @@ for matrix_index = 1:N_MATRICES
 end
 set(gca, 'XScale', 'log')
 grid on
-xlabel('Numero de inicios aleatorios')
-ylabel('Mejor estimacion de ||Q||_{4\rightarrow4}')
-title('Estimacion multinicio de la norma inducida 4')
+xlabel('Number of random starts')
+ylabel('Best estimate of ||Q||_{4\rightarrow4}')
+title('Multistart estimate of the induced 4-norm')
 legend('Location', 'southeast')
 
 nexttile
 hold on
 for matrix_index = 1:N_MATRICES
-    % En escala logaritmica, representar las brechas nulas al nivel de eps.
+    % On a logarithmic scale, plot zero gaps at the eps level.
     semilogy(START_COUNTS, max(relative_gaps(matrix_index, :), eps), '-o', ...
         'DisplayName', sprintf('Q_%d', matrix_index));
 end
 set(gca, 'YScale', 'log')
 grid on
-xlabel('Numero de inicios aleatorios')
-ylabel(sprintf('Brecha relativa frente a %d inicios', MAX_STARTS))
-title('Brecha frente a la referencia finita')
+xlabel('Number of random starts')
+ylabel(sprintf('Relative gap to %d starts', MAX_STARTS))
+title('Gap to the finite reference')
 legend('Location', 'southwest')
 
-sgtitle(sprintf('Convergencia de la norma inducida 4 para %d matrices Haar en SO(%d)', ...
+sgtitle(sprintf('Induced 4-norm convergence for %d Haar matrices in SO(%d)', ...
     N_MATRICES, DIMENSION))
