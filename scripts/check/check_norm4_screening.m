@@ -1,6 +1,6 @@
 % Screening must preserve the prescribed starts and approximate the full run.
 scriptDirectory = fileparts(mfilename('fullpath'));
-projectRoot = fileparts(scriptDirectory);
+projectRoot = fileparts(fileparts(scriptDirectory));
 addpath(fullfile(projectRoot, 'src', '4-norm'));
 addpath(fullfile(projectRoot, 'src', 'helpers'));
 rng(71, 'twister');

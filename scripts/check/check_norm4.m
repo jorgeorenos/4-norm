@@ -1,6 +1,6 @@
 % Basic checks of the induced 4-norm estimate (base MATLAB).
 scriptDirectory = fileparts(mfilename('fullpath'));
-projectRoot = fileparts(scriptDirectory);
+projectRoot = fileparts(fileparts(scriptDirectory));
 addpath(fullfile(projectRoot, 'src', '4-norm'));
 addpath(fullfile(projectRoot, 'src', 'helpers'));
 
@@ -89,12 +89,10 @@ assert(isempty(which('generate_unit_l4_vectors')));
 assert(isempty(which('power_norm4_single_start')));
 assert_error(@() compute_4_norm(zeros(2,3,4)), 'compute_4_norm:InvalidMatrix');
 assert_error(@() compute_4_norm(zeros(2,2,2,2)), 'compute_4_norm:InvalidMatrix');
-assert_error(@() compute_4_norm(cat(3, eye(2), ones(2))), 'compute_4_norm:NotSO');
 assert_error(@() compute_4_norm(eye(2), struct('StoreHistory',true)), ...
     'compute_4_norm:UnknownOption');
 assert_error(@() compute_4_norm(eye(2), ...
     struct('MaxWorkingMemoryMB',0)), 'compute_4_norm:InvalidMemoryBudget');
-assert_error(@() compute_4_norm(ones(2)), 'compute_4_norm:NotSO');
 assert_error(@() compute_4_norm(eye(2), struct('Bad',1)), ...
     'compute_4_norm:UnknownOption');
 assert_error(@() compute_4_norm(eye(2), ...

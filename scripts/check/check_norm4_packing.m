@@ -1,6 +1,6 @@
 % Packed and scalar trajectories must retain each original start's result.
 scriptDirectory = fileparts(mfilename('fullpath'));
-projectRoot = fileparts(scriptDirectory);
+projectRoot = fileparts(fileparts(scriptDirectory));
 addpath(fullfile(projectRoot, 'src', '4-norm'));
 addpath(fullfile(projectRoot, 'src', 'helpers'));
 rng(71, 'twister');

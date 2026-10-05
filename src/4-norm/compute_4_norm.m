@@ -1,8 +1,11 @@
 function qNorm4 = compute_4_norm(Q, options)
-%COMPUTE_4_NORM Estimate one induced 4-norm per matrix in SO(n).
+%COMPUTE_4_NORM Estimate one induced 4-norm per square matrix.
 %   Q is a real double n-by-n matrix or n-by-n-by-M array. The only
 %   output is an M-by-1 vector in the same order as Q(:,:,k).
 %   Each matrix uses independent random starts; no global maximum is certified.
+%   Membership in SO(n) is not verified: callers working with SO(n)
+%   matrices guarantee it by construction (see haar_so). The theoretical
+%   bounds 1 <= ||Q||_4 <= n^(1/4) hold only for SO(n) inputs.
 %   MaxWorkingMemoryMB (default 128) controls the estimated page block size.
 %   ScreenIterations > 0 is an optional approximate two-stage search: run
 %   every start briefly, then fully iterate only the NumFinalists strongest
@@ -17,17 +20,6 @@ function qNorm4 = compute_4_norm(Q, options)
     end
     n = size(Q, 1);
     numMatrices = size(Q, 3);
-    matrixTolerance = 1e-12*max(1,n);
-    % Validate the whole batch before consuming the random state.
-    for k = 1:numMatrices
-        matrix = Q(:,:,k);
-        if norm(matrix'*matrix-eye(n), 'fro') > matrixTolerance || ...
-                abs(det(matrix)-1) > matrixTolerance
-            error('compute_4_norm:NotSO', ...
-                'Q(:,:,%d) must belong to SO(n) within tolerance %.3e.', ...
-                k, matrixTolerance);
-        end
-    end
     defaults = struct('NumRandomStarts', 50, 'MaxIterations', 1000, ...
         'NormTolerance', 1e-10, 'StationarityTolerance', 1e-8, ...
         'FeasibilityTolerance', 1e-12, 'MaxWorkingMemoryMB', 128, ...
@@ -116,10 +108,6 @@ function qNorm4 = compute_4_norm(Q, options)
                 'No start produced a finite feasible candidate for Q(:,:,%d).', indices(failed));
         end
         qNorm4(indices) = estimates(:);
-    end
-    if any(qNorm4 < 1-matrixTolerance | qNorm4 > n^(1/4)+matrixTolerance)
-        warning('compute_4_norm:BoundAnomaly', ...
-            'An estimate falls outside the theoretical bounds for SO(n).');
     end
 end
 
