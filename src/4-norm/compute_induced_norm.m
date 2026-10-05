@@ -4,6 +4,8 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
 %   output is an M-by-1 vector in the same order as Q(:,:,k).
 %   normHandle must mathematically implement the vector 4-norm.
 %   Each matrix uses independent random starts; no global maximum is certified.
+%   MaxWorkingMemoryMB (default 128) controls the estimated page block size.
+%   @norm_4 supports column batches; vector-only equivalent handles also work.
     if nargin < 3
         options = struct();
     end
@@ -31,7 +33,7 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
     end
     defaults = struct('NumRandomStarts', 50, 'MaxIterations', 1000, ...
         'NormTolerance', 1e-10, 'StationarityTolerance', 1e-8, ...
-        'FeasibilityTolerance', 1e-12);
+        'FeasibilityTolerance', 1e-12, 'MaxWorkingMemoryMB', 128);
     if ~isstruct(options) || ~isscalar(options)
         error('compute_induced_norm:InvalidOptions', ...
             'options must be a scalar struct.');
@@ -61,46 +63,47 @@ function qNorm4 = compute_induced_norm(Q, normHandle, options)
         end
     end
 
+    if ~isa(options.MaxWorkingMemoryMB, 'double') || ...
+            ~isscalar(options.MaxWorkingMemoryMB) || ...
+            ~isreal(options.MaxWorkingMemoryMB) || ...
+            ~isfinite(options.MaxWorkingMemoryMB) || options.MaxWorkingMemoryMB <= 0
+        error('compute_induced_norm:InvalidMemoryBudget', ...
+            'MaxWorkingMemoryMB must be a finite positive double scalar.');
+    end
+
+    % Account for matrix pages, vectors, masks, and temporary norm arrays.
+    % This is a conservative working-size estimate, not a process memory cap.
+    bytesPerPage = 8*(n*n + 32*n*options.NumRandomStarts + 16*options.NumRandomStarts);
+    blockSize = min(numMatrices, max(1, floor( ...
+        options.MaxWorkingMemoryMB*2^20 / bytesPerPage)));
     qNorm4 = zeros(numMatrices, 1);
-    useVectorizedKernel = strcmp(func2str(normHandle), 'norm_4');
-    for k = 1:numMatrices
-        matrix = Q(:,:,k);
-        starts = generate_unit_l4_vectors(n, options.NumRandomStarts, 'random');
-        for j = 1:options.NumRandomStarts
-            starts(:,j) = starts(:,j) / checked_norm(normHandle, starts(:,j), 'random start');
+    for first = 1:blockSize:numMatrices
+        indices = first:min(first+blockSize-1, numMatrices);
+        starts = randn(n, options.NumRandomStarts, numel(indices));
+        columns = reshape(starts, n, []);
+        zeroColumns = ~any(columns, 1);
+        while any(zeroColumns)
+            columns(:,zeroColumns) = randn(n, sum(zeroColumns));
+            zeroColumns = ~any(columns, 1);
         end
-        if useVectorizedKernel
-            candidates = power_norm4_multiple_starts(matrix, starts, options);
-        else
-            candidates = zeros(1, options.NumRandomStarts);
-            for j = 1:options.NumRandomStarts
-                candidates(j) = power_norm4_single_start( ...
-                    matrix, normHandle, starts(:,j), options);
-            end
-        end
-        feasibleValues = candidates(isfinite(candidates));
-        if isempty(feasibleValues)
+        starts = reshape(columns, n, options.NumRandomStarts, numel(indices));
+        candidates = power_norm4_multiple_starts(Q(:,:,indices), normHandle, starts, options);
+        candidates(~isfinite(candidates)) = -Inf;
+        estimates = max(candidates, [], 1);
+        failed = find(~isfinite(estimates), 1);
+        if ~isempty(failed)
             error('compute_induced_norm:NoCandidate', ...
-                'No start produced a finite feasible candidate for Q(:,:,%d).', k);
+                'No start produced a finite feasible candidate for Q(:,:,%d).', indices(failed));
         end
-        qNorm4(k) = max(feasibleValues);
-        if qNorm4(k) < 1-matrixTolerance || qNorm4(k) > n^(1/4)+matrixTolerance
-            warning('compute_induced_norm:BoundAnomaly', ...
-                'The estimate for Q(:,:,%d) falls outside the theoretical bounds.', k);
-        end
+        qNorm4(indices) = estimates(:);
+    end
+    if any(qNorm4 < 1-matrixTolerance | qNorm4 > n^(1/4)+matrixTolerance)
+        warning('compute_induced_norm:BoundAnomaly', ...
+            'An estimate falls outside the theoretical bounds for SO(n).');
     end
 end
 
 function valid = valid_integer(value, minimum)
     valid = isa(value, 'double') && isscalar(value) && isreal(value) && ...
         isfinite(value) && value >= minimum && value == floor(value);
-end
-
-function value = checked_norm(normHandle, vector, label)
-    value = normHandle(vector);
-    if ~isnumeric(value) || ~isscalar(value) || ~isreal(value) || ...
-            ~isfinite(value) || value <= 0
-        error('compute_induced_norm:InvalidHandleOutput', ...
-            'normHandle(%s) must return a finite real scalar, positive for nonzero vectors.', label);
-    end
 end

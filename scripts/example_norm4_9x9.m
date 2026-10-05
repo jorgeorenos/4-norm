@@ -13,7 +13,7 @@ n = 9;
 numMatrices = 1000;
 startCounts = [1, 10, 25, 50, 100, 250, 500, 750, 1000];
 normHandle = @norm_4;
-baseOptions = struct('MaxIterations', 1000);
+baseOptions = struct('MaxIterations', 1000, 'MaxWorkingMemoryMB', 128);
 
 % MATLAB identifiers cannot start with a number, hence norm4_norms rather
 % than 4_norms. Each field is a numMatrices-by-1 vector.
