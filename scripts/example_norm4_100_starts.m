@@ -16,9 +16,9 @@ for k = 1:numMatrices
 end
 
 options = struct('NumRandomStarts', numStarts, 'MaxIterations', 1000, ...
-    'MaxWorkingMemoryMB', 128, 'ScreenIterations', 4, 'NumFinalists', 3);
+    'MaxWorkingMemoryMB', 128, 'ScreenIterations', 2, 'NumFinalists', 4);
 timer = tic;
-estimates = compute_induced_norm(rotations, @norm_4, options);
+estimates = compute_4_norm(rotations, options);
 elapsedSeconds = toc(timer);
 
 fprintf('Matrices Q: %d\n', numMatrices);

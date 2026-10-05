@@ -40,7 +40,6 @@ function [inducedNormValues, relativeGaps] = ...
     rng(seed, 'twister');
     numStartCounts = numel(startCounts);
     inducedNormValues = zeros(numMatrices, numStartCounts);
-    normHandle = @norm_4;
     baseOptions = struct('MaxIterations', maxIterations, ...
         'NormTolerance', normTolerance);
 
@@ -53,7 +52,7 @@ function [inducedNormValues, relativeGaps] = ...
 
             rng(startsState);
             inducedNormValues(matrixIndex, startCountIndex) = ...
-                compute_induced_norm(Q, normHandle, options);
+                compute_4_norm(Q, options);
         end
 
         % Keep the rotation stream aligned with the maximum-start run.

@@ -1,22 +1,18 @@
-function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
+function values = power_norm4_multiple_starts(Q, starts, options)
 %POWER_NORM4_MULTIPLE_STARTS Generalized power iteration over matrix pages.
 %   Q is n-by-n-by-M; starts is n-by-S-by-M and is normalized once here
-%   through normHandle. Returns an S-by-M array of best feasible amplitudes.
+%   with the internal fixed 4-norm kernel. Returns an S-by-M array of best
+%   feasible amplitudes.
 %   A trajectory stops independently; completed matrix pages are removed.
 %   A trajectory with no feasible candidate returns -Inf.
     n = size(Q, 1);
     numStarts = size(starts, 2);
     numMatrices = size(Q, 3);
-    vectorized = strcmp(func2str(normHandle), 'norm_4');
-    X = starts ./ apply_norm4_handle(normHandle, starts, vectorized);
+    X = starts ./ norm4_columns(starts);
     Y = pagemtimes(Q, X);
-    oldValues = apply_norm4_handle(normHandle, Y, vectorized);
+    oldValues = norm4_columns(Y);
     bestValues = oldValues;
-    if vectorized
-        feasibility = abs(sum(X.^4, 1).^(1/4) - 1);
-    else
-        feasibility = abs(apply_norm4_handle(normHandle, X, false) - 1);
-    end
+    feasibility = abs(norm4_columns(X) - 1);
     bestValues(feasibility > options.FeasibilityTolerance) = -Inf;
     V = pagemtimes(Q, 'transpose', Y.^3, 'none');
     active = true(1, numStarts, numMatrices);
@@ -27,21 +23,17 @@ function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
     for k = 1:options.MaxIterations
         u = sign(V).*abs(V).^(1/3);
         active = active & all(isfinite(u), 1) & any(u ~= 0, 1);
-        % Inactive trajectories use a harmless direction so no invalid or
-        % zero denominator is passed through a user's vector norm handle.
+        % Inactive trajectories use a harmless direction so normalization
+        % never receives an invalid or zero denominator.
         u = safe_directions(u, active, n);
-        X = u ./ apply_norm4_handle(normHandle, u, vectorized);
+        X = u ./ norm4_columns(u);
         active = active & all(isfinite(X), 1);
         X = safe_directions(X, active, n);
         Y = pagemtimes(Q, X);
         active = active & all(isfinite(Y), 1);
         Y = safe_directions(Y, active, n);
-        newValues = apply_norm4_handle(normHandle, Y, vectorized);
-        if vectorized
-            feasibility = abs(sum(X.^4, 1).^(1/4) - 1);
-        else
-            feasibility = abs(apply_norm4_handle(normHandle, X, false) - 1);
-        end
+        newValues = norm4_columns(Y);
+        feasibility = abs(norm4_columns(X) - 1);
         improves = active & feasibility <= options.FeasibilityTolerance & ...
             newValues > bestValues;
         bestValues(improves) = newValues(improves);
@@ -68,12 +60,11 @@ function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
                 xCube = xCube(:,valid);
                 residual = residual(:,valid);
                 denominator = max( ...
-                    apply_norm4_handle(normHandle, vColumns(:,columns), vectorized) + ...
+                    norm4_columns(vColumns(:,columns)) + ...
                     reshape(lambda(columns), 1, []).* ...
-                    apply_norm4_handle(normHandle, xCube, vectorized), ...
+                    norm4_columns(xCube), ...
                     realmin);
-                relativeResidual = apply_norm4_handle( ...
-                    normHandle, residual, vectorized) ./ denominator;
+                relativeResidual = norm4_columns(residual) ./ denominator;
                 active(columns(relativeResidual(:) <= options.StationarityTolerance)) = false;
             end
         end
@@ -102,7 +93,7 @@ function values = power_norm4_multiple_starts(Q, normHandle, starts, options)
         % Discard inactive slots when all remaining pages have substantially
         % fewer live starts. Preserve original start IDs for the output.
         slots = size(active, 2);
-        if vectorized && slots > 1
+        if slots > 1
             counts = reshape(sum(active, 2), 1, []);
             packedSlots = max(counts);
             if packedSlots <= floor(0.75*slots)

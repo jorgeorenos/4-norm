@@ -14,7 +14,7 @@ N = 1000;
 
 theta = (0:N-1) * (2*pi/N);
 directions = [cos(theta); sin(theta)];
-X = directions ./ norm_4(directions, 1);
+X = directions ./ norm4_columns(directions);
 A = haar_so(n);
 disp('Matrix A sampled from SO(2):');
 disp(A);

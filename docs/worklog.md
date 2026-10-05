@@ -1,5 +1,11 @@
 # Registro de trabajo
 
+## 2026-10-05
+
+- Se reemplazó `compute_induced_norm(Q,normHandle,options)` por `compute_4_norm(Q,options)`. La iteración multinicio quedó especializada para la norma 4: `power_norm4_multiple_starts` ya no recibe handles y usa `norm4_columns`, con ruta directa y ruta escalada para magnitudes extremas. Se retiraron `compute_induced_norm.m` y `apply_norm4_handle.m`.
+- Se adaptaron los ejemplos, scripts de comprobación y generadores documentales al nuevo contrato. En particular, `scripts/example_norm4_9x9.m` ahora llama a `compute_4_norm(rotations,options)` sin crear ni pasar `@norm_4`. La estrategia de bloques, multinicio, cribado, retirada de páginas y compactación de inicios se conserva.
+- Se retiró `norm_4.m`; los ejemplos geométricos, las referencias independientes y las comprobaciones usan ahora `norm4_columns`, y `angular_amplitude` y `spherical_amplitude` ya no reciben handles. MATLAB R2024b Update 9 ejecutó con código 0 `scripts/check_norm4.m`, `scripts/check_norm4_packing.m` y `scripts/check_norm4_screening.m`, además de los ejemplos 2D y 3D. También se ejecutó una versión reducida de `example_norm4_9x9.m` con 10 matrices y 30 iteraciones máximas: completó los nueve conteos de inicios, produjo vectores de estimaciones de tamaño 10 por 1 y terminó con código 0. MATLAB emitió una advertencia gráfica de OpenGL por software; no se ejecutó el experimento completo de 1000 matrices en esta verificación.
+
 ## 2026-10-02
 
 - Se implementó el procesamiento por páginas con `pagemtimes` en `power_norm4_multiple_starts`, con parada independiente por inicio y retirada de matrices terminadas. `compute_induced_norm` elige bloques mediante `MaxWorkingMemoryMB` (128 por defecto, estimación de temporales y mínimo una matriz). Los inicios gaussianos se normalizan una sola vez por el handle. `norm_4(X,dimension)` extiende la norma escalada a columnas y páginas; mantiene el contrato vectorial cuando no se indica dimensión. El adaptador privado `apply_norm4_handle` usa el handle en todas las normas y conserva los handles equivalentes de una sola entrada mediante evaluación por columna. No se incorporó la fórmula interna sin escalamiento del prototipo.

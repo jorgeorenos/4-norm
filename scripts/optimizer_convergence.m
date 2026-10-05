@@ -25,7 +25,6 @@ NORM_TOLERANCE = 1e-10;
 REFERENCE_TOLERANCE = 1e-8;
 
 rng(SEED, 'twister');
-normHandle = @norm_4;
 baseOptions = struct('MaxIterations', MAX_ITERATIONS, ...
     'NormTolerance', NORM_TOLERANCE, ...
     'StationarityTolerance', 1e-8, 'FeasibilityTolerance', 1e-12);
@@ -47,7 +46,7 @@ for matrix_index = 1:N_MATRICES
         starts(:,zeroColumns) = randn(DIMENSION, sum(zeroColumns));
         zeroColumns = ~any(starts, 1);
     end
-    perStartValues = power_norm4_multiple_starts(Q, normHandle, starts, baseOptions);
+    perStartValues = power_norm4_multiple_starts(Q, starts, baseOptions);
     bestPrefix = cummax(perStartValues(:));
     norm_q_values(matrix_index, :) = bestPrefix(START_COUNTS).';
 end

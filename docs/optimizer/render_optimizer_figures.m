@@ -16,7 +16,7 @@ N = 1000;
 Q = haar_so(n);
 theta = (0:N-1) * (2*pi/N);
 directions = [cos(theta); sin(theta)];
-X = directions ./ norm_4(directions, 1);
+X = directions ./ norm4_columns(directions);
 Y = Q * X;
 Xclosed = [X, X(:,1)];
 Yclosed = [Y, Y(:,1)];
@@ -47,7 +47,7 @@ legend('Original: ||x||_4=1', 'Transformed: y=Qx', 'Location', 'best');
 hold off;
 amplitudes = zeros(1,N);
 for k = 1:N
-    amplitudes(k) = norm_4(Q * X(:,k));
+    amplitudes(k) = norm4_columns(Q * X(:,k));
 end
 nexttile;
 plot(theta, amplitudes, 'Color', [0.15 0.35 0.70], 'LineWidth', 1.2);
@@ -79,16 +79,15 @@ close(fig);
 rng(42, 'twister');
 n = 2;
 Q = haar_so(n);
-normHandle = @norm_4;
 options = struct('NumRandomStarts', 50, 'MaxIterations', 1000);
-qNorm4 = compute_induced_norm(Q, normHandle, options);
+qNorm4 = compute_4_norm(Q, options);
 N = 10000;
 theta = (0:N-1) * (2*pi/N);
 directions = [cos(theta); sin(theta)];
-X = directions ./ normHandle(directions, 1);
+X = directions ./ norm4_columns(directions);
 amplitudes = zeros(1,N);
 for k = 1:N
-    amplitudes(k) = normHandle(Q * X(:,k));
+    amplitudes(k) = norm4_columns(Q * X(:,k));
 end
 fig = figure('Visible', 'off', 'Position', [100 100 1000 500]);
 plot([theta, 2*pi], [amplitudes, amplitudes(1)], 'Color', [0.15 0.35 0.70], 'LineWidth', 1.5);
@@ -106,9 +105,8 @@ close(fig);
 rng(42, 'twister');
 n = 3;
 Q = haar_so(n);
-normHandle = @norm_4;
 options = struct('NumRandomStarts', 100, 'MaxIterations', 1000);
-qNorm4 = compute_induced_norm(Q, normHandle, options);
+qNorm4 = compute_4_norm(Q, options);
 [azGrid, polGrid, Xgrid, amplitudes] = sphericalGrid(Q);
 [~, sortedIdx] = sort(amplitudes(:), 'descend');
 refinedOptions = optimset('Display', 'off', 'MaxFunEvals', 1000, 'MaxIter', 1000, 'TolX', 1e-12, 'TolFun', 1e-12);
@@ -117,14 +115,14 @@ bestAngles = [];
 for j = 1:min(12, numel(sortedIdx))
     idx = sortedIdx(j);
     init = [azGrid(idx); polGrid(idx)];
-    [ang, negVal] = fminsearch(@(a) -spherical_amplitude(a, Q, normHandle), init, refinedOptions);
+    [ang, negVal] = fminsearch(@(a) -spherical_amplitude(a, Q), init, refinedOptions);
     if -negVal > bestRefined
         bestRefined = -negVal;
         bestAngles = ang;
     end
 end
 refDir = [cos(bestAngles(1))*sin(bestAngles(2)); sin(bestAngles(1))*sin(bestAngles(2)); cos(bestAngles(2))];
-xRef = refDir / normHandle(refDir);
+xRef = refDir / norm4_columns(refDir);
 X1 = reshape(Xgrid(1,:), size(azGrid));
 X2 = reshape(Xgrid(2,:), size(azGrid));
 X3 = reshape(Xgrid(3,:), size(azGrid));

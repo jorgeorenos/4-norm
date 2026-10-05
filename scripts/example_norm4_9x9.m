@@ -14,10 +14,9 @@ rng(42, 'twister');
 n = 9;
 numMatrices = 1000;
 startCounts = [1, 10, 25, 50, 100, 250, 500, 750, 1000];
-normHandle = @norm_4;
 baseOptions = struct('MaxIterations', 1000, 'MaxWorkingMemoryMB', 128);
-screenIterations = 4;
-numFinalists = 3;
+screenIterations = 2;
+numFinalists = 4;
 screenMinStarts = 50;
 
 % MATLAB identifiers cannot start with a number, hence norm4_norms rather
@@ -43,7 +42,7 @@ for j = 1:numel(startCounts)
         options.NumFinalists = numFinalists;
     end
     startTimer = tic;
-    norm4_norms.(fieldNames{j}) = compute_induced_norm(rotations, normHandle, options);
+    norm4_norms.(fieldNames{j}) = compute_4_norm(rotations, options);
     elapsedByStartCount(j) = toc(startTimer);
     fprintf('  Completed batch with %d random starts\n', startCounts(j));
 end

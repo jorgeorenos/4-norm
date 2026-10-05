@@ -7,9 +7,8 @@ rng(42, 'twister');
 
 n = 3;
 Q = haar_so(n);
-normHandle = @norm_4;
 options = struct('NumRandomStarts', 100, 'MaxIterations', 1000);
-qNorm4 = compute_induced_norm(Q, normHandle, options);
+qNorm4 = compute_4_norm(Q, options);
 disp('Matrix Q in SO(3):');
 disp(Q);
 fprintf('Estimated induced 4-norm: %.12f\n', qNorm4);
@@ -38,7 +37,7 @@ for j = 1:numRefinementStarts
     index = sortedIndices(j);
     initialAngles = [azimuthGrid(index); polarGrid(index)];
     [refinedAngles, negativeAmplitude] = fminsearch( ...
-        @(angles) -spherical_amplitude(angles, Q, normHandle), ...
+        @(angles) -spherical_amplitude(angles, Q), ...
         initialAngles, refinementOptions);
     if -negativeAmplitude > angularReference
         angularReference = -negativeAmplitude;
@@ -47,7 +46,7 @@ for j = 1:numRefinementStarts
 end
 referenceDirection = [cos(bestAngles(1))*sin(bestAngles(2)); ...
     sin(bestAngles(1))*sin(bestAngles(2)); cos(bestAngles(2))];
-xAngularBest = referenceDirection / normHandle(referenceDirection);
+xAngularBest = referenceDirection / norm4_columns(referenceDirection);
 fprintf('Approximate spherical reference: %.12f\n', angularReference);
 fprintf('Power - spherical difference: %.3e\n', qNorm4-angularReference);
 

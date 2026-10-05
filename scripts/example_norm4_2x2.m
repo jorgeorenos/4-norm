@@ -7,9 +7,8 @@ rng(42, 'twister');
 
 n = 2;
 Q = haar_so(n);
-normHandle = @norm_4;
 options = struct('NumRandomStarts', 50, 'MaxIterations', 1000);
-qNorm4 = compute_induced_norm(Q, normHandle, options);
+qNorm4 = compute_4_norm(Q, options);
 disp('Matrix Q in SO(2):');
 disp(Q);
 fprintf('Estimated induced 4-norm: %.12f\n', qNorm4);
@@ -17,10 +16,10 @@ fprintf('Estimated induced 4-norm: %.12f\n', qNorm4);
 N = 10000;
 theta = (0:N-1) * (2*pi/N);
 directions = [cos(theta); sin(theta)];
-X = directions ./ normHandle(directions, 1);
+X = directions ./ norm4_columns(directions);
 % Evaluate the independent angular grid in one matrix product and
 % column-wise norm calls instead of 10000 scalar handle invocations.
-amplitudes = normHandle(Q*X, 1);
+amplitudes = norm4_columns(Q*X);
 [angularReference, bestGridIndex] = max(amplitudes);
 left = amplitudes([N, 1:N-1]);
 right = amplitudes([2:N, 1]);
@@ -32,7 +31,7 @@ end
 angleStep = 2*pi/N;
 for k = localIndices
     [refinedAngle, negativeAmplitude] = fminbnd( ...
-        @(angle) -angular_amplitude(angle, Q, normHandle), ...
+        @(angle) -angular_amplitude(angle, Q), ...
         theta(k)-angleStep, theta(k)+angleStep);
     if -negativeAmplitude > angularReference
         angularReference = -negativeAmplitude;

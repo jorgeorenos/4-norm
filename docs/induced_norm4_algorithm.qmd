@@ -5,15 +5,15 @@ lang: es
 ---
 
 Para $Q$ real de $SO(n)$, la norma inducida se define por
-$\|Q\|_4=\max_{\|x\|_4=1}\|Qx\|_4$. No es la norma 4 de las entradas de $Q$, su norma de Frobenius ni la norma espectral. `norm_4` usa escalamiento para calcular la norma vectorial sin overflow/underflow innecesarios.
+$\|Q\|_4=\max_{\|x\|_4=1}\|Qx\|_4$. No es la norma 4 de las entradas de $Q$, su norma de Frobenius ni la norma espectral. `norm4_columns` usa una ruta escalada para evitar overflow/underflow innecesarios.
 
 ## Potencia generalizada
 
 Con $f(x)=\|Qx\|_4^4$, la condición estacionaria sobre la esfera unitaria es $Q^T(Qx)^{\odot 3}=f(x)\,x^{\odot 3}$. Desde cada vector unitario, se calcula $y=Qx$, $v=Q^T(y^{\odot 3})$, $u=\operatorname{sign}(v)\,|v|^{\odot 1/3}$ y $x_{\text{nuevo}}=u/\|u\|_4$. Las potencias y la raíz cúbica son componente a componente; la raíz conserva el signo. Se mide $\|Qx_{\text{nuevo}}\|_4$ sin normalizar la imagen.
 
-`normHandle` se pasa como segundo argumento a `compute_induced_norm` y `power_norm4_multiple_starts`: normalizaciones, amplitudes y residuos usan ese handle. Debe implementar matemáticamente la norma vectorial 4, incluso si es un handle anónimo equivalente a `@norm_4`. El algoritmo cúbico no optimiza normas arbitrarias; las comprobaciones de tipo y salida del handle no demuestran el contrato matemático.
+`compute_4_norm` y `power_norm4_multiple_starts` están especializados para la norma vectorial 4: normalizaciones, amplitudes y residuos se evalúan con un kernel interno fijo, sin handles. El algoritmo cúbico no pretende optimizar normas arbitrarias.
 
-El estimador genera inicios gaussianos mediante `randn` y los normaliza una sola vez mediante el handle dentro del kernel. Los scripts geométricos construyen y normalizan sus direcciones angulares directamente; no existe un generador público separado. Por defecto se usan 50 direcciones; `NumRandomStarts` es exactamente el número total de trayectorias. $Q$ permanece fija; el muestreo aleatorio consume el estado existente sin cambiar la semilla. Estos inicios no son uniformes sobre la superficie.
+El estimador genera inicios gaussianos mediante `randn` y los normaliza una sola vez con el kernel interno de norma 4. Los scripts geométricos construyen y normalizan sus direcciones angulares directamente; no existe un generador público separado. Por defecto se usan 50 direcciones; `NumRandomStarts` es exactamente el número total de trayectorias. $Q$ permanece fija; el muestreo aleatorio consume el estado existente sin cambiar la semilla. Estos inicios no son uniformes sobre la superficie.
 
 ## Parada y resultados
 
@@ -31,17 +31,17 @@ $$
 
 Converge solo si conjuntamente el cambio relativo de amplitud ($10^{-10}$), el residuo ($10^{-8}$) y el error de factibilidad ($10^{-12}$) cumplen sus tolerancias. El límite predeterminado es 1000 iteraciones por inicio. Se conserva el mejor candidato factible evaluado aun si alcanza el límite; no se devuelve un estado de convergencia. Los descensos apreciables o fallos numéricos detienen la trayectoria conservando su mejor amplitud factible.
 
-`compute_induced_norm(Q,@norm_4,options)` devuelve únicamente un vector columna de estimaciones, una por cada página de una entrada `n×n×M`. Para una matriz `n×n`, la salida es escalar. No se devuelven candidatos, diagnósticos ni historiales. Cada matriz permanece fija durante el multinicio y utiliza sus propias direcciones iniciales.
+`compute_4_norm(Q,options)` devuelve únicamente un vector columna de estimaciones, una por cada página de una entrada `n×n×M`. Para una matriz `n×n`, la salida es escalar. No se devuelven candidatos, diagnósticos ni historiales. Cada matriz permanece fija durante el multinicio y utiliza sus propias direcciones iniciales.
 
 Las opciones son `NumRandomStarts` (50), `MaxIterations` (1000), `NormTolerance` ($10^{-10}$), `StationarityTolerance` ($10^{-8}$), `FeasibilityTolerance` ($10^{-12}$) y `MaxWorkingMemoryMB` (128). Pueden pasarse parcialmente. Las cantidades de inicios e iteraciones son enteros positivos; las tolerancias y el presupuesto de memoria son escalares double positivos y finitos. Se verifica cada matriz en $SO(n)$ con tolerancia $10^{-12}\max(1,n)$ para ortogonalidad (Frobenius) y determinante antes de consumir el estado aleatorio. Las cotas $1\leq\|Q\|_4\leq n^{1/4}$ sirven para reportar anomalías, no para recortar resultados.
 
 `ScreenIterations` (0 por defecto) activa opcionalmente una criba: cada inicio se itera hasta esa cantidad de veces (puede detenerse antes por convergencia) y solo los `NumFinalists` mejores por matriz (3 por defecto) vuelven a iterarse desde sus direcciones originales hasta los criterios de parada o `MaxIterations`. Se conserva también la mejor amplitud de la primera etapa. Se sortean los mismos inicios, pero la criba es una aproximación adicional: una trayectoria descartada podría mejorar después y cambiar el máximo estimado. `example_norm4_100_starts.m` permite hasta cuatro iteraciones y tres finalistas. En `example_norm4_9x9.m`, los conteos 1, 10 y 25 conservan el cálculo completo; de 50 a 1000 se aplica esta criba. Estas opciones no aportan garantía global ni equivalencia general con iterar todos los inicios hasta el final.
 
-## Procesamiento por páginas y handles
+## Procesamiento por páginas
 
 Los inicios de un bloque tienen tamaño `n×S×B`: una página por matriz y una columna por inicio. `pagemtimes` calcula simultáneamente los productos por $Q$ y su traspuesta. Una máscara controla la parada de cada trayectoria; se retira una matriz cuando todos sus inicios terminaron. Cuando se alcanza el límite de iteraciones se guardan también las amplitudes de las páginas pendientes. El orden de las salidas se conserva al retirar páginas.
 
-Todas las normas se evalúan mediante el handle. `@norm_4` ofrece la interfaz `normHandle(X,1)` para columnas de todas las páginas, con el mismo escalamiento para evitar extremos innecesarios. Otros handles equivalentes se aplican vector por vector; no se supone que admitan arreglos ni un segundo argumento. La ruta por columnas es la recomendada para obtener el mejor tiempo con `@norm_4`. La fórmula de norma 4 no se replica dentro del kernel.
+Todas las normas se evalúan internamente mediante un kernel fijo por columnas y páginas, con una ruta escalada para evitar extremos innecesarios. No se aceptan handles de norma alternativos.
 
 Las normas del residuo para la parada solo se evalúan cuando ya cumplen las tolerancias de cambio relativo y factibilidad: antes no pueden satisfacer conjuntamente los criterios. Se mantienen las comprobaciones de finitud y descenso. El muestreo consume el estado aleatorio existente; no se restablece la semilla dentro de funciones.
 
