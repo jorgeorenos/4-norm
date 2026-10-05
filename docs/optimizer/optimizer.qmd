@@ -13,241 +13,381 @@ lang: es
 
 ## Introducción
 
-Este documento describe el procedimiento implementado para estimar la norma matricial inducida 4 de matrices ortogonales especiales $Q \in SO(n)$. La norma inducida 4 mide la máxima amplificación que una matriz produce sobre vectores unitarios cuando tanto el dominio como el codominio se miden con la norma vectorial 4.
+La norma inducida 4 mide cuánto puede amplificar una matriz a un vector cuando tanto la entrada como la salida se miden con la norma 4. Este documento explica cómo estimar esa amplificación para una matriz de rotación $Q\in SO(n)$.
 
-El problema es no convexo y carece de garantías globales generales para matrices con signos mixtos [3, 4]. Por ello, la implementación utiliza un método de potencia generalizada con multinicio, que busca puntos estacionarios de la función objetivo restringida a la esfera unitaria de norma 4. El documento detalla la geometría del problema, la formulación lagrangiana, el algoritmo iterativo paso a paso, y ejemplos numéricos en dimensiones 2 y 3.
+La idea consiste en buscar la dirección de entrada que produce la mayor norma de salida. Para ello, se parte de varios vectores iniciales, se mejora cada uno mediante una iteración de potencia generalizada y se conserva el mejor resultado. Esta estrategia se denomina *multinicio*. La matriz $Q$ permanece fija durante toda la búsqueda.
+
+Primero se explica por qué basta trabajar con vectores de norma 4 unitaria. Luego se plantea el problema de optimización y su lagrangiano, se describe la iteración y se presentan ejemplos en dos y tres dimensiones. Finalmente, se estudia cómo cambia la estimación al aumentar el número de inicios.
 
 ## Objetivo
 
-Dada una matriz real cuadrada $Q \in \mathbb{R}^{n \times n}$ que pertenece al grupo ortogonal especial $SO(n)$, se desea calcular su norma inducida 4:
+Se considera una matriz real $Q$ que cumple
 
 $$
-\|Q\|_4 = \max_{x \neq 0} \frac{\|Qx\|_4}{\|x\|_4}.
+Q'Q=I_n,\qquad \det(Q)=1.
 $$
 
-La norma vectorial 4 se define como:
+Estas condiciones definen el conjunto $SO(n)$. El símbolo $Q'$ representa la traspuesta de $Q$.
+
+La norma vectorial 4 es
 
 $$
-\|x\|_4 = \left( \sum_{j=1}^{n} |x_j|^4 \right)^{1/4}.
+\|x\|_4=\left(\sum_{j=1}^{n}|x_j|^4\right)^{1/4}.
 $$
 
-### Por qué restringir a la esfera unitaria
-
-La función $x \mapsto \|Qx\|_4$ es homogénea de grado 1: para cualquier escalar $\alpha \in \mathbb{R}$,
+A partir de ella, la norma inducida de $Q$ se define como
 
 $$
-\|Q(\alpha x)\|_4 = |\alpha| \, \|Qx\|_4.
+\|Q\|_{4\to4}=\max_{x\ne0}\frac{\|Qx\|_4}{\|x\|_4}.
 $$
 
-Si no se restringiera el dominio, el cociente $\|Qx\|_4 / \|x\|_4$ es invariante bajo escalamiento de $x$, pero la cantidad $\|Qx\|_4$ sola crece sin límite conforme $\|x\|_4 \to \infty$. Por ello, el problema de maximización $\max \|Qx\|_4$ sobre $\mathbb{R}^n \setminus \{0\}$ está mal planteado.
+El cociente compara la magnitud de la salida con la de la entrada. Su máximo indica la mayor amplificación posible. Usaremos $\|\cdot\|_4$ para los vectores y $\|\cdot\|_{4\to4}$ para las matrices. En los títulos de las figuras, $\|Q\|_4$ abrevia esta última notación.
 
-Para obtener un máximo finito bien definido, se acota la búsqueda a la **esfera unitaria de norma 4**:
+### Por qué basta considerar vectores de norma 4 unitaria
 
-$$
-S_4 = \{ x \in \mathbb{R}^n : \|x\|_4 = 1 \}.
-$$
+Si multiplicamos un vector por un escalar no nulo, tanto la norma de entrada como la de salida cambian en la misma proporción. Por ello, el cociente depende de la dirección del vector, pero no de su tamaño.
 
-De este modo, el problema equivalente es:
+Para cualquier $x\ne0$, podemos formar el vector normalizado
 
 $$
-\|Q\|_4 = \max_{\|x\|_4 = 1} \|Qx\|_4.
+z=\frac{x}{\|x\|_4},
+\qquad \|z\|_4=1.
 $$
 
-Esta restricción elimina la invarianza de escala y confina la búsqueda a un conjunto compacto, donde la función continua alcanza su máximo.
+Al aplicar $Q$ a este vector,
+
+$$
+\|Qz\|_4
+=\left\|Q\frac{x}{\|x\|_4}\right\|_4
+=\frac{\|Qx\|_4}{\|x\|_4}.
+$$
+
+Así, normalizar la entrada conserva el valor que queremos maximizar. Podemos buscar únicamente entre los vectores de la esfera unitaria
+
+$$
+S_4=\{x\in\mathbb{R}^n:\|x\|_4=1\},
+$$
+
+y escribir el problema como
+
+$$
+\|Q\|_{4\to4}=\max_{\|x\|_4=1}\|Qx\|_4.
+$$
+
+La restricción también acota la búsqueda: como $\sum_j|x_j|^4=1$, ninguna componente puede tener valor absoluto mayor que 1. En este conjunto cerrado y acotado, la norma de salida cambia de forma continua, de modo que existe un máximo finito.
+
+Sin esa restricción, maximizar únicamente $\|Qx\|_4$ permitiría aumentar el resultado indefinidamente haciendo cada vez más grande el vector de entrada. Fijar su norma en 1 permite comparar direcciones en igualdad de condiciones.
 
 ## Geometría del problema
 
-La esfera $S_4$ en $\mathbb{R}^n$ es el conjunto de nivel de la norma 4. A diferencia de la esfera euclidiana $S_2$, la esfera $S_4$ no es invariante bajo rotaciones arbitrarias. Esto implica que una matriz $Q \in SO(n)$, aunque preserve longitudes euclidianas, ángulos y volúmenes, en general **no preserva la norma 4**.
+La esfera $S_4$ está formada por los vectores que tienen norma 4 igual a 1. En dos dimensiones es una curva cerrada y en tres dimensiones es una superficie. La bola de norma 4 incluye, además, los puntos de su interior.
 
-En dimensión 2, $S_4$ es una curva cerrada con forma de "supercírculo". En dimensión 3, es una superficie cerrada. La imagen $Q(S_4)$ es la misma curva o superficie rotada euclidianamente, pero los valores de la norma 4 sobre $Q(S_4)$ difieren de los originales.
+Una rotación conserva las longitudes euclidianas, los ángulos y el volumen, pero generalmente cambia la norma 4. Por eso, aunque $x$ pertenezca a $S_4$, su imagen $Qx$ puede tener norma 4 mayor o menor que 1. Llamaremos *amplitud* al valor
+
+$$
+a(x)=\|Qx\|_4,\qquad x\in S_4.
+$$
+
+Una amplitud mayor que 1 indica amplificación en norma 4; una menor que 1 indica contracción en esa norma. La longitud euclidiana se conserva en ambos casos.
 
 ### Ejemplo: $Q$ en $SO(2)$
 
-La siguiente figura muestra la esfera $S_4$ original, su imagen bajo una rotación aleatoria $Q \in SO(2)$, y la amplitud de la norma 4 sobre la esfera transformada como función del ángulo.
+Para recorrer $S_4$, se toman direcciones con distintos ángulos y se normalizan:
+
+$$
+d(\theta)=
+\begin{bmatrix}\cos\theta\\ \sin\theta\end{bmatrix},
+\qquad
+x(\theta)=\frac{d(\theta)}{\|d(\theta)\|_4},
+\qquad 0\leq\theta<2\pi.
+$$
 
 ![Geometría de la norma 4 en dimensión 2](figures/generated/optimizer-geometry-2d.png){fig-alt="Tres paneles: esfera S4, su imagen rotada y amplitud angular."}
 
-El primer panel muestra el contorno de $S_4$. El segundo panel superpone el contorno original (gris discontinuo) y su imagen rotada (naranja). El tercer panel muestra cómo la norma 4 varía con el ángulo del vector de entrada: la rotación altera la amplitud de la norma 4 porque $S_4$ no es esféricamente simétrica.
+El primer panel muestra $S_4$. El segundo superpone la curva original y su imagen rotada $Q(S_4)$. El tercero muestra cómo cambia la amplitud con el ángulo de entrada.
+
+La curva rotada puede coincidir con la original para rotaciones especiales, como las de ángulo múltiplo de $\pi/2$. Para una rotación general, la amplitud varía y pueden aparecer varias direcciones de máxima amplificación. Los vectores transformados se muestran sin volver a normalizarlos, para conservar esa información.
 
 ### Ejemplo: $Q$ en $SO(3)$
 
-En dimensión 3, se parametriza la esfera $S_4$ mediante ángulos azimut y polar, se normaliza cada dirección a norma 4 unitaria, y se colorea la superficie según la amplitud $\|Qx\|_4$.
+En tres dimensiones, se toman direcciones descritas por dos ángulos, se normalizan a norma 4 unitaria y se colorea la superficie según su amplitud.
 
 ![Esfera de norma 4 en dimensión 3 coloreada por amplitud](figures/generated/optimizer-geometry-3d.png){fig-alt="Superficie S4 tridimensional coloreada según la amplitud de la norma 4."}
 
-La superficie mostrada es el dominio restringido $S_4$; el color indica el valor de la función objetivo $\|Qx\|_4$ en cada dirección, no una altura adicional. Los máximos locales de color más claro corresponden a direcciones donde $Q$ amplifica más la norma 4.
+La forma de la superficie representa $S_4$ y el color indica cuánto amplifica $Q$ cada dirección. Los colores asociados a valores altos en la barra de color señalan las regiones de mayor amplitud.
+
+Los ejemplos para $SO(2)$ y $SO(3)$ muestran cómo se comporta la norma 4 bajo rotaciones, evidenciando que existe más de una dirección que maximiza la amplificación en norma 4.
 
 ## Problema de optimización
 
-El problema de optimización con restricción de igualdad es:
+Queremos encontrar un vector de norma 4 unitaria cuya imagen tenga la mayor norma 4 posible:
 
 $$
-\max_{x \in \mathbb{R}^n} \|Qx\|_4 \quad \text{sujeto a} \quad \|x\|_4 = 1.
+\max_{x\in\mathbb{R}^n}\|Qx\|_4
+\quad\text{sujeto a}\quad \|x\|_4=1.
 $$
 
-Para simplificar los cálculos, se eleva la función objetivo a la cuarta potencia, lo que no altera la ubicación del máximo por ser la función $t \mapsto t^4$ estrictamente creciente para $t \geq 0$:
+### Expresar el objetivo y la restricción sin raíces
+
+Como los valores de una norma son no negativos, elevarlos a la cuarta potencia conserva su orden: el vector que maximiza $\|Qx\|_4$ también maximiza $\|Qx\|_4^4$. Esto permite trabajar con una suma de potencias eliminando la raíz cuarta.
 
 $$
-\max_{x \in \mathbb{R}^n} f(x) = \|Qx\|_4^4 = \sum_{j=1}^{n} |(Qx)_j|^4 \quad \text{sujeto a} \quad g(x) = \|x\|_4^4 - 1 = 0.
+f(x)=\|Qx\|_4^4=\sum_{j=1}^{n}(Qx)_j^4.
 $$
 
-### Lagrangiano
-
-El lagrangiano del problema es:
+La restricción se escribe de la misma manera:
 
 $$
-\mathcal{L}(x, \lambda) = \|Qx\|_4^4 - \lambda \left( \|x\|_4^4 - 1 \right).
+h(x)=\|x\|_4^4-1=\sum_{i=1}^{n}x_i^4-1=0.
 $$
 
-Calculando los gradientes:
+El problema equivalente es
 
 $$
-\nabla f(x) = 4 Q^T (Qx)^{\odot 3}, \qquad
-\nabla g(x) = 4 x^{\odot 3},
+\max_x f(x)\quad\text{sujeto a}\quad h(x)=0.
 $$
 
-donde $(\cdot)^{\odot 3}$ denota la potencia tercera componente a componente.
+Cuando se obtiene el valor máximo de $f$, basta tomar su raíz cuarta para recuperar la norma inducida.
 
-La condición de estacionariedad de primer orden (condición KKT para igualdades) exige:
+### Construir el lagrangiano
 
-$$
-\nabla f(x) = \lambda \, \nabla g(x) \quad \Longrightarrow \quad
-Q^T (Qx)^{\odot 3} = \lambda \, x^{\odot 3}.
-$$
-
-Premultiplicando por $x^T$ y usando la restricción $\|x\|_4 = 1$:
+El lagrangiano incorpora la restricción al cálculo de las derivadas mediante un multiplicador escalar $\lambda$:
 
 $$
-\lambda = \|Qx\|_4^4 = f(x).
+\mathcal{L}(x,\lambda)=f(x)-\lambda h(x).
 $$
 
-Por tanto, la condición estacionaria sobre $S_4$ se escribe como:
+En este caso,
 
 $$
-Q^T (Qx)^{\odot 3} = \|Qx\|_4^4 \, x^{\odot 3}.
+\mathcal{L}(x,\lambda)
+=\sum_{j=1}^{n}(Qx)_j^4
+-\lambda\left(\sum_{i=1}^{n}x_i^4-1\right).
 $$
 
-### Naturaleza del punto estacionario
+La idea es buscar un punto donde ya no sea posible mejorar el objetivo con un pequeño cambio que mantenga la norma de entrada igual a 1. En ese punto, los gradientes del objetivo y de la restricción son proporcionales; $\lambda$ expresa esa proporción.
 
-La condición anterior es **necesaria pero no suficiente** para un máximo global. Los puntos que la satisfacen pueden ser:
+### Calcular los gradientes
 
-- Máximos locales de la función objetivo.
-- Mínimimos locales.
-- Puntos silla sobre la esfera.
+Si $q_j'$ es la fila $j$ de $Q$, entonces $(Qx)_j=q_j'x$. Al derivar la función objetivo respecto de una componente $x_i$,
 
-La función $f(x) = \|Qx\|_4^4$ no es convexa sobre $S_4$, y para matrices $Q$ con signos mixtos (como las generadas por muestreo Haar [8]) no existen garantías generales de que el máximo global sea único o fácilmente alcanzable desde cualquier punto inicial [3, 4]. Por ello, el método numérico busca múltiples puntos estacionarios y retiene el de mayor valor objetivo, pero **no certifica optimalidad global**.
+$$
+\frac{\partial f}{\partial x_i}
+=4\sum_{j=1}^{n}(Qx)_j^3q_{ji},
+$$
+
+donde $q_{ji}$ es la entrada de $Q$ en la fila $j$ y la columna $i$. Reuniendo las derivadas en un vector,
+
+$$
+\nabla f(x)=4Q'(Qx)^{\odot3},
+\qquad
+\nabla h(x)=4x^{\odot3}.
+$$
+
+La notación $(\cdot)^{\odot3}$ indica que cada componente se eleva al cubo. Todos los vectores se consideran columnas.
+
+### Obtener la condición de estacionariedad
+
+Al igualar a cero el gradiente del lagrangiano respecto de $x$ y mantener la restricción, se obtiene
+
+$$
+\nabla f(x)-\lambda\nabla h(x)=0,
+\qquad \|x\|_4=1.
+$$
+
+Después de sustituir los gradientes y cancelar el factor 4,
+
+$$
+Q'(Qx)^{\odot3}=\lambda x^{\odot3}.
+$$
+
+Un vector que cumple esta relación es un punto estacionario del problema restringido. Para identificar el multiplicador, multiplicamos ambos lados por $x'$:
+
+$$
+x'Q'(Qx)^{\odot3}=\lambda x'x^{\odot3}.
+$$
+
+El lado izquierdo es la suma de las cuartas potencias de las componentes de $Qx$. En el derecho, $x'x^{\odot3}=\sum_i x_i^4=1$. Por tanto,
+
+$$
+\lambda=\|Qx\|_4^4.
+$$
+
+La condición final queda
+
+$$
+Q'(Qx)^{\odot3}=\|Qx\|_4^4x^{\odot3}.
+$$
+
+Esta relación orienta la iteración descrita a continuación.
+
+### Qué nos dice esta condición
+
+La ecuación permite reconocer puntos donde el objetivo deja de cambiar a primer orden sobre $S_4$. Sin embargo, esos puntos pueden ser máximos locales, mínimos locales o puntos silla. Un máximo local tiene una amplitud al menos tan grande como la de las direcciones cercanas; un máximo global cumple esa comparación con todas las direcciones posibles.
+
+También pueden existir varios vectores con la misma amplitud máxima. Por ejemplo, debido a la simetría de nuestro espacio de búsqueda, $x$ y $-x$ pueden producir la misma norma de salida. Por ello, encontrar un punto estacionario no basta para asegurar que se encontró el máximo global.
 
 ## Algoritmo de optimización
 
-El método implementado es una **iteración de potencia generalizada con multinicio** [1, 2]. Aprovecha la estructura polinomial del gradiente para definir una actualización de punto fijo sobre la esfera $S_4$.
+La iteración de potencia generalizada usa la condición anterior para actualizar el vector de entrada. Repetirla desde varios inicios permite explorar distintas regiones de la esfera. El método de potencia para estimar normas inducidas se estudia en las referencias [1](https://doi.org/10.1016/0024-3795(74)90029-9) y [2](https://nhigham.com/wp-content/uploads/2023/09/high92e.pdf).
 
-### Esquema de multinicio
+### Elegir varios puntos iniciales
 
-Se lanzan varias trayectorias desde puntos iniciales distintos para explorar múltiples cuencas de atracción:
+Se generan $N$ vectores aleatorios y se normaliza cada uno a norma 4 unitaria. Por ejemplo, pueden tomarse vectores con componentes gaussianas y dividirlos entre su norma 4^[En los ejercicios que se mostrarán en las secciones siguientes este es el mecanimos de generacion de los puntos iniciales]. Esto produce puntos válidos sobre $S_4$, aunque no garantiza una distribución uniforme sobre la superficie.
 
-1. **Inicios estructurados**: para cada $i = 1, \dots, n$, se toma la $i$-ésima columna de $Q^T$ (es decir, $Q^T e_i$) y se normaliza a norma 4 unitaria:
+Cada inicio da lugar a una secuencia de actualizaciones. Todas usan la misma matriz $Q$. Las matrices de los ejemplos se muestrean con distribución Haar, que permite elegir rotaciones sin favorecer una orientación particular [6](https://arxiv.org/abs/math-ph/0609050).
+
+### Actualizar el vector
+
+Desde un punto inicial $x_0\in S_4$, se repiten los siguientes pasos:
+
+1. Calcular la imagen del vector actual:
    $$
-   x_0^{(i)} = \frac{Q^T e_i}{\|Q^T e_i\|_4}.
-   $$
-   Estos inicios explotan la estructura de $Q$ y suelen tener amplitudes iniciales $1 / \|Q^T e_i\|_4$.
-
-2. **Inicios aleatorios**: se generan $N_{\text{rand}}$ direcciones gaussianas normalizadas a $S_4$ mediante `generate_unit_l4_vectors`.
-
-En total se ejecutan $n + N_{\text{rand}}$ trayectorias independientes. La matriz $Q$ permanece fija durante todo el proceso.
-
-### Iteración de potencia generalizada
-
-Desde cada punto inicial $x_0 \in S_4$, se itera [1, 5]:
-
-1. **Propagación**: calcular la imagen
-   $$
-   y = Qx.
+   y_k=Qx_k.
    $$
 
-2. **Gradiente cúbico retropropagado**: calcular
+2. Formar el vector asociado al gradiente:
    $$
-   v = Q^T (y^{\odot 3}) = Q^T (Qx)^{\odot 3}.
-   $$
-   Este vector apunta en la dirección del gradiente de $f(x)$.
-
-3. **Raíz cúbica con signo**: definir
-   $$
-   u = \operatorname{sign}(v) \odot |v|^{\odot 1/3}.
-   $$
-   La raíz cúbica se aplica componente a componente preservando el signo. Este paso invierte la no linealidad cúbica del gradiente.
-
-4. **Normalización**: proyectar de vuelta a la esfera $S_4$:
-   $$
-   x_{\text{nuevo}} = \frac{u}{\|u\|_4}.
+   v_k=Q'(y_k^{\odot3}).
    $$
 
-5. **Evaluación**: calcular el nuevo valor objetivo
+3. Tomar la raíz cúbica real de cada componente:
    $$
-   \text{valor}_{\text{nuevo}} = \|Qx_{\text{nuevo}}\|_4.
+   (u_k)_i=\operatorname{sign}((v_k)_i)\,|(v_k)_i|^{1/3}.
    $$
-   Si $x_{\text{nuevo}}$ es factible y mejora el mejor valor conocido de esta trayectoria, se retiene como candidato.
+   Conservando el signo de cada componente.
 
-### Criterios de parada
+4. Normalizar el resultado:
+   $$
+   x_{k+1}=\frac{u_k}{\|u_k\|_4}.
+   $$
+   Así, el nuevo vector vuelve a tener norma 4 unitaria.
 
-En cada iteración se verifican tres condiciones simultáneas:
+5. Evaluar la nueva amplitud:
+   $$
+   a_{k+1}=\|Qx_{k+1}\|_4.
+   $$
+   Se conserva el vector de mayor amplitud encontrado durante la secuencia, incluido el punto inicial.
 
-- **Cambio relativo de amplitud**:
-  $$
-  \frac{|\text{valor}_{\text{nuevo}} - \text{valor}_{\text{viejo}}|}{\max(1, |\text{valor}_{\text{nuevo}}|, |\text{valor}_{\text{viejo}}|)} \leq 10^{-10}.
-  $$
+La raíz cúbica y la normalización siguen la forma de la ecuación de estacionariedad: si $v=\lambda x^{\odot3}$, con $\lambda=\|Qx\|_4^4>0$, tomar la raíz cúbica produce un múltiplo positivo de $x$, y normalizarlo devuelve el mismo vector.
 
-- **Residuo de estacionariedad relativo**:
-  $$
-  \frac{\|Q^T(Qx)^{\odot 3} - \|Qx\|_4^4 \, x^{\odot 3}\|_4}{\max(\|Q^T(Qx)^{\odot 3}\|_4 + \|Qx\|_4^4 \|x^{\odot 3}\|_4, \text{realmin})} \leq 10^{-8}.
-  $$
+### Decidir cuándo detenerse
 
-- **Factibilidad**:
-  $$
-  |\|x_{\text{nuevo}}\|_4 - 1| \leq 10^{-12}.
-  $$
+La iteración se detiene cuando se cumplen tres comprobaciones:
 
-La iteración converge solo si las tres condiciones se cumplen conjuntamente. Si se alcanza el límite de 1000 iteraciones sin convergencia, la trayectoria termina y se emite una advertencia.
+- La amplitud cambia muy poco entre dos pasos consecutivos.
+- La ecuación de estacionariedad se cumple aproximadamente.
+- La norma 4 del vector sigue siendo cercana a 1.
 
-### Postprocesamiento
-
-Tras ejecutar todas las trayectorias, se selecciona el candidato con mayor valor objetivo entre todos los inicios. Se verifica que la estimación final respete las cotas teóricas para matrices en $SO(n)$:
+La segunda comprobación se basa en el residuo
 
 $$
-1 \leq \|Q\|_4 \leq n^{1/4}.
+r(x)=Q'(Qx)^{\odot3}-\|Qx\|_4^4x^{\odot3}.
 $$
+
+Un residuo pequeño respecto del tamaño de los términos indica que el vector está cerca de satisfacer la ecuación. Para las comparaciones presentadas se usan tolerancias de $10^{-10}$ para el cambio relativo de amplitud, $10^{-8}$ para el residuo relativo y $10^{-12}$ para el error en la norma de entrada.
+
+También se fija un número máximo de iteraciones. Si se alcanza ese límite, se conserva el mejor candidato encontrado, dejando constancia de que la secuencia no cumplió todos los criterios de parada^[En nuestros ejemplos ese limite es de 1000 iteraciones].
+
+### Elegir el resultado final
+
+Después de repetir el procedimiento desde todos los inicios, se elige el candidato de mayor amplitud, denotado por $\widehat{x}$. La estimación es
+
+$$
+\widehat{\nu}=\|Q\widehat{x}\|_4.
+$$
+
+Este valor no supera la norma inducida exacta si $\widehat{x}$ tiene norma 4 unitaria. Para una matriz de $SO(n)$, la norma exacta está entre
+
+$$
+1\leq\|Q\|_{4\to4}\leq n^{1/4}.
+$$
+
+Estas cotas sirven como referencia para revisar los resultados. Estar dentro del intervalo o cumplir los criterios de parada no garantiza que se haya encontrado la mayor amplitud posible.
 
 ## Ejemplos del algoritmo de optimización
 
+En cada ejemplo, la estimación y la comparación numérica usan la misma matriz $Q$. Denotamos por $\widehat{x}$ el candidato del método; la etiqueta $x^*$ de las figuras se refiere a este candidato y no supone que sea un máximo global.
+
 ### Matriz $Q$ en $SO(2)$
 
-El siguiente código estima la norma inducida 4 para una matriz $Q \in SO(2)$ mediante el método de potencia con multinicio, y compara el resultado con una referencia angular densa.
+Se utilizan 50 inicios aleatorios y se compara el resultado con una malla de 10 000 ángulos. Las direcciones de mayor amplitud detectadas en la malla se ajustan mediante una búsqueda local para obtener una referencia más precisa.
 
 ![Estimación de la norma inducida 4 en SO(2)](figures/generated/optimizer-result-2d.png){fig-alt="Amplitud angular con el candidato del método de potencia marcado."}
 
-La gráfica muestra la amplitud $\|Qx(\theta)\|_4$ para una malla densa de ángulos (línea azul) y el candidato $x^*$ encontrado por el optimizador (círculo naranja). El método de potencia converge a un máximo local; en muchos casos coincide con el máximo global de la malla, pero no hay certificación teórica de que siempre sea así.
+La línea azul muestra la amplitud sobre la malla angular. El círculo naranja señala el ángulo de $\widehat{x}$ y la amplitud obtenida por el multinicio. Una diferencia pequeña entre este valor y la referencia indica acuerdo entre ambos procedimientos, aunque la malla finita presente buenos resultados para matrices $Q$ de dimension pequeña, su expansión a matrices mayores puede requerir un mayor número de puntos para capturar todas las direcciones relevantes.
 
 ### Matriz $Q$ en $SO(3)$
 
-En dimensión 3, el optimizador se compara contra una referencia esférica. La figura muestra la esfera $S_4$ coloreada por amplitud, junto con el candidato del método de potencia y el máximo refinado de la malla.
+Se utilizan 100 inicios aleatorios y una malla de 181 ángulos de azimut por 91 ángulos polares.
 
 ![Estimación de la norma inducida 4 en SO(3)](figures/generated/optimizer-result-3d.png){fig-alt="Superficie S4 coloreada por amplitud con el máximo refinado y el candidato de potencia."}
 
-La esfera de norma 4 se visualiza en tres dimensiones con color proporcional a $\|Qx\|_4$. El marcador pentagonal naranja indica el máximo obtenido por refinamiento local de la malla esférica, mientras que el círculo negro indica el candidato $x^*$ del método de potencia generalizada. La proximidad entre ambos puntos sugiere que el optimizador encontró una solución de calidad, aunque como se enfatizó previamente, esto no constituye una prueba de optimalidad global.
+El marcador naranja señala el candidato de referencia y el círculo negro señala $\widehat{x}$. Ambos marcadores se superponen aproximadamente.
+
+## Análisis de convergencia
+
+Además de revisar la evolución de cada secuencia, interesa observar qué ocurre al aumentar el número de inicios. Para comparar resultados, se mantiene fija cada matriz $Q$ y se reutilizan las primeras $N$ direcciones de una misma lista de puntos iniciales.
+
+Denotamos por $\widehat{\nu}_N(Q)$ la mejor amplitud obtenida con $N$ inicios. Al añadir más direcciones, la mejor estimación no debe disminuir, salvo pequeñas diferencias de redondeo.
+
+Las curvas de la izquierda muestran esta estimación. Las de la derecha muestran su brecha relativa frente al resultado de 1000 inicios:
+
+$$
+\delta_N(Q)=
+\frac{\widehat{\nu}_{1000}(Q)-\widehat{\nu}_N(Q)}
+     {\widehat{\nu}_{1000}(Q)}.
+$$
+
+Una brecha pequeña indica que los inicios adicionales examinados aportaron poca mejora. La referencia de 1000 inicios también es una estimación, por lo que esta comparación no mide el error respecto de la norma exacta.
+
+Se estudian diez matrices por dimensión y los siguientes números de inicios:
+
+$$
+N\in\{1,2,5,10,25,50,100,250,500,750,1000\}.
+$$
+
+En este análisis, cada secuencia tiene un límite de 1000 iteraciones y usa las tolerancias indicadas anteriormente. Las figuras permiten comparar cuánto mejora la estimación al ampliar la búsqueda en cada dimensión.
+
+### Matrices en $SO(2)$
+
+La convergencia sucede extremadamente rápido en $SO(2)$, reflejando la simplicidad de la geometría en dimensiones bajas.
+
+![Convergencia de la norma inducida 4 para matrices Haar en SO(2)](figures/convergence_analysis/convergence-analysis-so2.png){fig-alt="Dos paneles para diez matrices en SO(2): estimación acumulada de la norma inducida 4 y brecha relativa respecto de 1000 inicios."}
+
+### Matrices en $SO(5)$
+
+La convergencia en $SO(5)$ es más lenta que en $SO(2)$, pero aún así se observa que la estimación de la norma inducida 4 mejora de manera consistente al aumentar el número de inicios aleatorios.
+
+La convergencia en $SO(5)$ sucede aproximadamente con 25 inicios aleatorios.
+
+![Convergencia de la norma inducida 4 para matrices Haar en SO(5)](figures/convergence_analysis/convergence-analysis-so5.png){fig-alt="Dos paneles para diez matrices en SO(5): estimación acumulada de la norma inducida 4 y brecha relativa respecto de 1000 inicios."}
+
+### Matrices en $SO(9)$
+
+La convergencia en $SO(9)$ es aún más lenta, reflejando la mayor complejidad de la geometría en dimensiones intermedias. Nuevamente la convergencia sucede aproximadamente con 25 inicios aleatorios.
+
+![Convergencia de la norma inducida 4 para matrices Haar en SO(9)](figures/convergence_analysis/convergence-analysis-so9.png){fig-alt="Dos paneles para diez matrices en SO(9): estimación acumulada de la norma inducida 4 y brecha relativa respecto de 1000 inicios."}
+
+### Matrices en $SO(17)$
+
+En $SO(17)$ la convergencia es mucho más lenta, requiriendo en general 100 inicios aleatorios^[Solamente una de las matrices $Q$ requirio aproximadamente 250 inicios].
+
+![Convergencia de la norma inducida 4 para matrices Haar en SO(17)](figures/convergence_analysis/convergence-analysis-so17.png){fig-alt="Dos paneles para diez matrices en SO(17): estimación acumulada de la norma inducida 4 y brecha relativa respecto de 1000 inicios."}
+
+Lo anterior nos muestra que el algoritmo de estimación multinicio no requiere un número excesivo de inicios
+aleatoreos para obtener estimaciones confiables de la norma inducida 4.
 
 ## Referencias
 
-[1] D. W. Boyd, "The power method for $\ell^p$ norms," *Linear Algebra and its Applications*, vol. 9, pp. 95–101, 1974. DOI: [10.1016/0024-3795(74)90029-9](https://doi.org/10.1016/0024-3795(74)90029-9).
+[1] D. W. Boyd, «The power method for $\ell^p$ norms», *Linear Algebra and its Applications*, vol. 9, pp. 95–101, 1974. DOI: [10.1016/0024-3795(74)90029-9](https://doi.org/10.1016/0024-3795(74)90029-9).
 
-[2] N. J. Higham, *Accuracy and Stability of Numerical Algorithms*, 2nd ed. Philadelphia, PA: SIAM, 2002. (Sección 15.2).
+[2] N. J. Higham, «Estimating the matrix $p$-norm», *Numerische Mathematik*, vol. 62, pp. 539–555, 1992. [Texto del autor](https://nhigham.com/wp-content/uploads/2023/09/high92e.pdf).
 
-[3] J. M. Hendrickx y A. Olshevsky, "Matrix $p$-norms are NP-hard to approximate if $p \neq 1, 2, \infty$," *SIAM Journal on Matrix Analysis and Applications*, vol. 31, no. 5, pp. 2802–2812, 2010. DOI: [10.1137/09076773X](https://doi.org/10.1137/09076773X).
+[3] J. M. Hendrickx y A. Olshevsky, «Matrix $p$-norms are NP-hard to approximate if $p\neq1,2,\infty$», *SIAM Journal on Matrix Analysis and Applications*, vol. 31, n.º 5, pp. 2802–2812, 2010. DOI: [10.1137/09076773X](https://doi.org/10.1137/09076773X). [Prepublicación](https://arxiv.org/abs/0908.1397).
 
-[4] A. Bhaskara y A. Vijayaraghavan, "Approximating matrix $p$-norms," en *Proceedings of the 22nd Annual ACM-SIAM Symposium on Discrete Algorithms (SODA)*, San Francisco, CA, 2011, pp. 497–511.
+[4] A. Bhaskara y A. Vijayaraghavan, «Approximating Matrix $p$-norms», en *Proceedings of the Twenty-Second Annual ACM-SIAM Symposium on Discrete Algorithms (SODA)*, 2011, pp. 497–511. DOI: [10.1137/1.9781611973082.40](https://doi.org/10.1137/1.9781611973082.40). [Prepublicación](https://arxiv.org/abs/1001.2613).
 
-[5] P. D. Tao, "Convergence of a subgradient method for computing the bound norm of matrices," *Linear Algebra and its Applications*, vol. 62, pp. 163–182, 1984. DOI: [10.1016/0024-3795(84)90090-5](https://doi.org/10.1016/0024-3795(84)90090-5).
+[5] Pham Dinh Tao, «Convergence of a subgradient method for computing the bound norm of matrices», *Linear Algebra and its Applications*, vol. 62, pp. 163–182, 1984. DOI: [10.1016/0024-3795(84)90093-4](https://doi.org/10.1016/0024-3795(84)90093-4).
 
-[6] T. G. Kolda y J. R. Mayo, "Shifted power method for computing tensor eigenpairs," *SIAM Journal on Matrix Analysis and Applications*, vol. 32, no. 4, pp. 1095–1124, 2011. DOI: [10.1137/100801812](https://doi.org/10.1137/100801812).
-
-[7] L. De Lathauwer, B. De Moor y J. Vandewalle, "On the best rank-1 and rank-$(R_1,R_2,\dots,R_n)$ approximation of higher-order tensors," *SIAM Journal on Matrix Analysis and Applications*, vol. 21, no. 4, pp. 1324–1342, 2000. DOI: [10.1137/S0895479898346995](https://doi.org/10.1137/S0895479898346995).
-
-[8] F. Mezzadri, "How to generate random matrices from the classical compact groups," *Notices of the AMS*, vol. 54, no. 5, pp. 592–604, 2007.
+[6] F. Mezzadri, «How to generate random matrices from the classical compact groups», *Notices of the AMS*, vol. 54, n.º 5, pp. 592–604, 2007. [Prepublicación](https://arxiv.org/abs/math-ph/0609050).

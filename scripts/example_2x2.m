@@ -12,7 +12,9 @@ rng(42, 'twister');
 n = 2;
 N = 1000;
 
-X = generate_unit_l4_vectors(n, N, 'angular');
+theta = (0:N-1) * (2*pi/N);
+directions = [cos(theta); sin(theta)];
+X = directions ./ norm4_columns(directions);
 A = haar_so(n);
 disp('Matrix A sampled from SO(2):');
 disp(A);

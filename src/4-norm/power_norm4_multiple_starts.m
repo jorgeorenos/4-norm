@@ -1,193 +1,144 @@
-function [values, xHats, runInfo] = power_norm4_multiple_starts(Q, starts, options, includeDiagnostics)
-%POWER_NORM4_MULTIPLE_STARTS Vectorized generalized power iterations.
-%   This internal kernel is specialized to the 4-norm.  Its columns are
-%   independent starts, but their dense matrix products are evaluated in
-%   batches.  It is used only when COMPUTE_INDUCED_NORM receives @norm_4.
-
-    if nargin < 4
-        includeDiagnostics = true;
-    end
-
+function values = power_norm4_multiple_starts(Q, starts, options)
+%POWER_NORM4_MULTIPLE_STARTS Generalized power iteration over matrix pages.
+%   Q is n-by-n-by-M; starts is n-by-S-by-M and is normalized once here
+%   with the internal fixed 4-norm kernel. Returns an S-by-M array of best
+%   feasible amplitudes.
+%   A trajectory stops independently; completed matrix pages are removed.
+%   A trajectory with no feasible candidate returns -Inf.
+    n = size(Q, 1);
     numStarts = size(starts, 2);
+    numMatrices = size(Q, 3);
     X = starts ./ norm4_columns(starts);
-    Y = Q*X;
+    Y = pagemtimes(Q, X);
     oldValues = norm4_columns(Y);
-    startValues = oldValues;
-    values = oldValues;
-    xHats = X;
-    candidateFeasibility = abs(norm4_columns(X) - 1);
-
-    % V is the value needed in the following update.  Keeping it avoids
-    % repeating Q'*(Y.^3) at the beginning of every iteration.
-    V = Q'*(Y.^3);
-    converged = false(1, numStarts);
-    iterations = zeros(1, numStarts);
-    reasonCode = ones(1, numStarts); % 1=max, 2=converged, 3=decrease, 4=failure
-    active = true(1, numStarts);
-    if options.StoreHistory
-        histories = num2cell(oldValues);
-    end
+    bestValues = oldValues;
+    feasibility = abs(norm4_columns(X) - 1);
+    bestValues(feasibility > options.FeasibilityTolerance) = -Inf;
+    V = pagemtimes(Q, 'transpose', Y.^3, 'none');
+    active = true(1, numStarts, numMatrices);
+    pageIndices = 1:numMatrices;
+    values = -Inf(numStarts, numMatrices);
+    startIds = repmat(1:numStarts, 1, 1, numMatrices);
 
     for k = 1:options.MaxIterations
-        activeIndices = find(active);
-        if isempty(activeIndices)
-            break;
-        end
+        u = sign(V).*abs(V).^(1/3);
+        active = active & all(isfinite(u), 1) & any(u ~= 0, 1);
+        % Inactive trajectories use a harmless direction so normalization
+        % never receives an invalid or zero denominator.
+        u = safe_directions(u, active, n);
+        X = u ./ norm4_columns(u);
+        active = active & all(isfinite(X), 1);
+        X = safe_directions(X, active, n);
+        Y = pagemtimes(Q, X);
+        active = active & all(isfinite(Y), 1);
+        Y = safe_directions(Y, active, n);
+        newValues = norm4_columns(Y);
+        feasibility = abs(norm4_columns(X) - 1);
+        improves = active & feasibility <= options.FeasibilityTolerance & ...
+            newValues > bestValues;
+        bestValues(improves) = newValues(improves);
 
-        v = V(:, activeIndices);
-        u = sign(v).*abs(v).^(1/3);
-        validU = all(isfinite(u), 1) & any(u, 1);
-        failed = activeIndices(~validU);
-        reasonCode(failed) = 4;
-        active(failed) = false;
-
-        indices = activeIndices(validU);
-        if isempty(indices)
-            continue;
-        end
-        u = u(:, validU);
-        xNew = u ./ norm4_columns(u);
-        validX = all(isfinite(xNew), 1);
-        failed = indices(~validX);
-        reasonCode(failed) = 4;
-        active(failed) = false;
-
-        indices = indices(validX);
-        if isempty(indices)
-            continue;
-        end
-        xNew = xNew(:, validX);
-        yNew = Q*xNew;
-        valueNew = norm4_columns(yNew);
-        validY = all(isfinite(yNew), 1) & isfinite(valueNew) & valueNew > 0;
-        failed = indices(~validY);
-        reasonCode(failed) = 4;
-        active(failed) = false;
-
-        indices = indices(validY);
-        if isempty(indices)
-            continue;
-        end
-        xNew = xNew(:, validY);
-        yNew = yNew(:, validY);
-        valueNew = valueNew(validY);
-        feasibilityError = abs(norm4_columns(xNew) - 1);
-        improves = feasibilityError <= options.FeasibilityTolerance & ...
-            valueNew > values(indices);
-        improvedIndices = indices(improves);
-        values(improvedIndices) = valueNew(improves);
-        xHats(:, improvedIndices) = xNew(:, improves);
-        candidateFeasibility(improvedIndices) = feasibilityError(improves);
-        iterations(indices) = k;
-        if options.StoreHistory
-            for j = 1:numel(indices)
-                histories{indices(j)}(end+1) = valueNew(j);
+        changeScale = max(1, max(abs(newValues), abs(oldValues)));
+        active = active & newValues >= oldValues - 128*eps(changeScale);
+        vNew = pagemtimes(Q, 'transpose', Y.^3, 'none');
+        lambda = newValues.^4;
+        active = active & isfinite(lambda) & all(isfinite(vNew), 1);
+        relativeChange = abs(newValues - oldValues) ./ changeScale;
+        eligible = active & relativeChange <= options.NormTolerance & ...
+            feasibility <= options.FeasibilityTolerance;
+        if any(eligible(:))
+            % Cubes and residuals are needed only for candidates that can stop.
+            columns = find(eligible(:));
+            vColumns = reshape(vNew, n, []);
+            xColumns = reshape(X, n, []);
+            xCube = xColumns(:,columns).^3;
+            residual = vColumns(:,columns) - xCube.*reshape(lambda(columns), 1, []);
+            valid = all(isfinite(residual), 1);
+            active(columns(~valid)) = false;
+            columns = columns(valid);
+            if ~isempty(columns)
+                xCube = xCube(:,valid);
+                residual = residual(:,valid);
+                denominator = max( ...
+                    norm4_columns(vColumns(:,columns)) + ...
+                    reshape(lambda(columns), 1, []).* ...
+                    norm4_columns(xCube), ...
+                    realmin);
+                relativeResidual = norm4_columns(residual) ./ denominator;
+                active(columns(relativeResidual(:) <= options.StationarityTolerance)) = false;
             end
         end
+        V = vNew;
+        oldValues = newValues;
 
-        decreaseScale = max([ones(1, numel(indices)); abs(valueNew); ...
-            abs(oldValues(indices))], [], 1);
-        decreases = valueNew < oldValues(indices) - 128*eps(decreaseScale);
-        decreasedIndices = indices(decreases);
-        reasonCode(decreasedIndices) = 3;
-        active(decreasedIndices) = false;
-
-        indices = indices(~decreases);
-        if isempty(indices)
-            continue;
+        keep = reshape(any(active, 2), 1, []);
+        if any(~keep)
+            for page = find(~keep)
+                validSlots = startIds(1,:,page) > 0;
+                positions = startIds(1,validSlots,page) + ...
+                    (pageIndices(page)-1)*numStarts;
+                values(positions) = bestValues(1,validSlots,page);
+            end
+            pageIndices = pageIndices(keep);
+            if isempty(pageIndices)
+                return;
+            end
+            Q = Q(:,:,keep);
+            V = V(:,:,keep);
+            oldValues = oldValues(:,:,keep);
+            bestValues = bestValues(:,:,keep);
+            active = active(:,:,keep);
+            startIds = startIds(:,:,keep);
         end
-        xNew = xNew(:, ~decreases);
-        yNew = yNew(:, ~decreases);
-        valueNew = valueNew(~decreases);
-        feasibilityError = feasibilityError(~decreases);
-        vNew = Q'*(yNew.^3);
-        lambdaNew = valueNew.^4;
-        xCube = xNew.^3;
-        residual = vNew - xCube.*lambdaNew;
-        validResidual = isfinite(lambdaNew) & all(isfinite(vNew), 1) & ...
-            all(isfinite(residual), 1);
-        failed = indices(~validResidual);
-        reasonCode(failed) = 4;
-        active(failed) = false;
-
-        indices = indices(validResidual);
-        if isempty(indices)
-            continue;
+        % Discard inactive slots when all remaining pages have substantially
+        % fewer live starts. Preserve original start IDs for the output.
+        slots = size(active, 2);
+        if slots > 1
+            counts = reshape(sum(active, 2), 1, []);
+            packedSlots = max(counts);
+            if packedSlots <= floor(0.75*slots)
+                pages = numel(pageIndices);
+                packedV = zeros(n, packedSlots, pages);
+                packedOld = zeros(1, packedSlots, pages);
+                packedBest = -Inf(1, packedSlots, pages);
+                packedIds = zeros(1, packedSlots, pages);
+                packedActive = false(1, packedSlots, pages);
+                for page = 1:pages
+                    validSlots = startIds(1,:,page) > 0;
+                    positions = startIds(1,validSlots,page) + ...
+                        (pageIndices(page)-1)*numStarts;
+                    values(positions) = bestValues(1,validSlots,page);
+                    live = find(active(1,:,page));
+                    count = numel(live);
+                    packedV(:,1:count,page) = V(:,live,page);
+                    packedOld(1,1:count,page) = oldValues(1,live,page);
+                    packedBest(1,1:count,page) = bestValues(1,live,page);
+                    packedIds(1,1:count,page) = startIds(1,live,page);
+                    packedActive(1,1:count,page) = true;
+                end
+                V = packedV;
+                oldValues = packedOld;
+                bestValues = packedBest;
+                startIds = packedIds;
+                active = packedActive;
+            end
         end
-        xNew = xNew(:, validResidual);
-        yNew = yNew(:, validResidual);
-        valueNew = valueNew(validResidual);
-        feasibilityError = feasibilityError(validResidual);
-        vNew = vNew(:, validResidual);
-        lambdaNew = lambdaNew(validResidual);
-        xCube = xCube(:, validResidual);
-        residual = residual(:, validResidual);
-        denominator = max(norm4_columns(vNew) + abs(lambdaNew).* ...
-            norm4_columns(xCube), realmin);
-        relativeResidual = norm4_columns(residual) ./ denominator;
-        relativeChange = abs(valueNew - oldValues(indices)) ./ ...
-            max([ones(1, numel(indices)); abs(valueNew); ...
-            abs(oldValues(indices))], [], 1);
-        nowConverged = relativeChange <= options.NormTolerance & ...
-            relativeResidual <= options.StationarityTolerance & ...
-            feasibilityError <= options.FeasibilityTolerance;
-        convergedIndices = indices(nowConverged);
-        converged(convergedIndices) = true;
-        reasonCode(convergedIndices) = 2;
-        active(convergedIndices) = false;
-
-        continuing = ~nowConverged;
-        continuingIndices = indices(continuing);
-        X(:, continuingIndices) = xNew(:, continuing);
-        Y(:, continuingIndices) = yNew(:, continuing);
-        V(:, continuingIndices) = vNew(:, continuing);
-        oldValues(continuingIndices) = valueNew(continuing);
     end
-
-    runInfo.converged = converged;
-    runInfo.iterations = iterations;
-    runInfo.feasibilityErrors = candidateFeasibility;
-    if includeDiagnostics
-        runInfo.startValues = startValues;
-        runInfo.terminationReasons = reason_labels(reasonCode);
-        if options.StoreHistory
-            runInfo.histories = histories;
-        end
-        yBest = Q*xHats;
-        vBest = Q'*(yBest.^3);
-        lambdaBest = values.^4;
-        xCubeBest = xHats.^3;
-        residual = vBest - xCubeBest.*lambdaBest;
-        denominator = max(norm4_columns(vBest) + abs(lambdaBest).* ...
-            norm4_columns(xCubeBest), realmin);
-        runInfo.stationarityResiduals = norm4_columns(residual) ./ denominator;
-    else
-        runInfo.reasonCodes = reasonCode;
+    for page = 1:numel(pageIndices)
+        validSlots = startIds(1,:,page) > 0;
+        positions = startIds(1,validSlots,page) + ...
+            (pageIndices(page)-1)*numStarts;
+        values(positions) = bestValues(1,validSlots,page);
     end
 end
 
-function values = norm4_columns(X)
-    scales = max(abs(X), [], 1);
-    values = zeros(1, size(X, 2));
-    nonzero = scales > 0;
-    if any(nonzero)
-        scaled = abs(X(:, nonzero)) ./ scales(nonzero);
-        values(nonzero) = scales(nonzero).*sum(scaled.^4, 1).^(1/4);
-    end
-end
-
-function labels = reason_labels(codes)
-    labels = cell(1, numel(codes));
-    for j = 1:numel(codes)
-        switch codes(j)
-            case 1
-                labels{j} = 'maxIterations';
-            case 2
-                labels{j} = 'converged';
-            case 3
-                labels{j} = 'numericalDecrease';
-            otherwise
-                labels{j} = 'numericalFailure';
-        end
+function X = safe_directions(X, active, n)
+    if any(~active(:))
+        originalSize = size(X);
+        columns = reshape(X, n, []);
+        inactive = ~active(:);
+        columns(:,inactive) = 0;
+        columns(1,inactive) = 1;
+        X = reshape(columns, originalSize);
     end
 end
