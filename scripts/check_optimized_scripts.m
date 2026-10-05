@@ -32,13 +32,12 @@ try
     index = find(strcmp(names, 'power_norm4_multiple_starts'), 1);
     assert(~isempty(index) && ...
         info.FunctionTable(index).NumCalls == numel(iterationBudgets));
-    assert(~any(strcmp(names, 'power_norm4_single_start')));
     assert(isequal(size(values), [size(X0,2), numel(iterationBudgets)]));
     for k = 1:numel(iterationBudgets)
         referenceOptions = options;
         referenceOptions.MaxIterations = iterationBudgets(k);
         for j = 1:size(X0,2)
-            referenceValue = power_norm4_single_start(Q, @norm_4, ...
+            referenceValue = power_norm4_multiple_starts(Q, @norm_4, ...
                 X0(:,j), referenceOptions);
             assert(abs(values(j,k) - referenceValue) < 1e-12);
         end

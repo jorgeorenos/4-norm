@@ -16,10 +16,10 @@ fprintf('Estimated induced 4-norm: %.12f\n', qNorm4);
 % Independent comparison in dimension 2: grid and periodic refinement.
 N = 10000;
 theta = (0:N-1) * (2*pi/N);
-X = generate_unit_l4_vectors(2, N, 'angular');
-% Evaluate the independent angular grid in one matrix product and two
+directions = [cos(theta); sin(theta)];
+X = directions ./ normHandle(directions, 1);
+% Evaluate the independent angular grid in one matrix product and
 % column-wise norm calls instead of 10000 scalar handle invocations.
-X = X ./ normHandle(X, 1);
 amplitudes = normHandle(Q*X, 1);
 [angularReference, bestGridIndex] = max(amplitudes);
 left = amplitudes([N, 1:N-1]);

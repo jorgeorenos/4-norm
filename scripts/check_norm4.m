@@ -24,7 +24,8 @@ rng(42, 'twister');
 opts = struct('NumRandomStarts', 20, 'MaxIterations', 100);
 for n = [1 2 5 10]
     assert(abs(compute_induced_norm(eye(n), @norm_4, opts) - 1) < 1e-12);
-    X = generate_unit_l4_vectors(n, 25);
+    directions = randn(n, 25);
+    X = directions ./ norm_4(directions, 1);
     assert(isequal(size(X), [n 25]) && all(isfinite(X(:))));
     assert(max(abs(sum(abs(X).^4,1).^(1/4)-1)) < 1e-12);
     Qhaar = haar_so(n);
@@ -75,7 +76,7 @@ for n = [1 2 5 10]
         rawStarts = randn(n,opts.NumRandomStarts);
         singleValues = zeros(1,opts.NumRandomStarts);
         for column = 1:opts.NumRandomStarts
-            singleValues(column) = power_norm4_single_start( ...
+            singleValues(column) = power_norm4_multiple_starts( ...
                 matrices(:,:,page), @norm_4, rawStarts(:,column), ...
                 struct('MaxIterations', opts.MaxIterations, 'NormTolerance', 1e-10, ...
                 'StationarityTolerance', 1e-8, 'FeasibilityTolerance', 1e-12));
@@ -90,7 +91,8 @@ short = struct('NumRandomStarts', 1, 'MaxIterations', 1);
 assert(isfinite(compute_induced_norm(Q, @norm_4, short)));
 assert(nargout('compute_induced_norm') == 1);
 assert(nargout('power_norm4_multiple_starts') == 1);
-assert(nargout('power_norm4_single_start') == 1);
+assert(isempty(which('generate_unit_l4_vectors')));
+assert(isempty(which('power_norm4_single_start')));
 assert_error(@() compute_induced_norm(zeros(2,3,4), @norm_4), 'compute_induced_norm:InvalidMatrix');
 assert_error(@() compute_induced_norm(zeros(2,2,2,2), @norm_4), 'compute_induced_norm:InvalidMatrix');
 assert_error(@() compute_induced_norm(cat(3, eye(2), ones(2)), @norm_4), 'compute_induced_norm:NotSO');

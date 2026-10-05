@@ -17,12 +17,11 @@ El candidato numérico no se considera necesariamente x* global. No implementar 
 | `.gitignore` | Archivos temporales y resultados regenerables. |
 | `docs/geometry_norm4.md` | Definiciones, métodos de generación e interpretación geométrica. |
 | `docs/worklog.md` | Registro breve del trabajo y su verificación. |
-| `src/4-norm/generate_unit_l4_vectors.m` | Generación de vectores unitarios para dimensión n. |
 | `src/helpers/haar_so.m` | Generación Haar de matrices de SO(n). |
 | `scripts/example_2x2.m` | Ejemplo reproducible con las dos gráficas solicitadas. |
 | `src/4-norm/norm_4.m` | Norma vectorial 4 escalada. |
-| `src/4-norm/power_norm4_single_start.m` | Iteración generalizada desde un inicio. |
-| `src/4-norm/compute_induced_norm.m` | Estimación inducida 4 con multinicio y diagnósticos. |
+| `src/4-norm/power_norm4_multiple_starts.m` | Iteración generalizada para múltiples inicios y matrices. |
+| `src/4-norm/compute_induced_norm.m` | Estimaciones inducidas 4 por matriz con multinicio. |
 | `scripts/example_norm4_2x2.m` | Estimación y comparación angular en SO(2). |
 | `src/helpers/spherical_amplitude.m` | Amplitud de norma 4 en una dirección esférica de R³. |
 | `src/helpers/angular_amplitude.m` | Amplitud de norma 4 en una dirección angular de R². |
@@ -30,7 +29,7 @@ El candidato numérico no se considera necesariamente x* global. No implementar 
 | `scripts/check_norm4.m` | Comprobaciones pequeñas sin framework. |
 | `docs/induced_norm4_algorithm.md` | Método, tolerancias y limitaciones. |
 
-Las funciones sustantivas deben residir en `src/`; los scripts deben coordinar llamadas y visualizaciones. Mantener la documentación en español y los identificadores de código en inglés. Usar MATLAB base, sin dependencias de toolboxes adicionales ni lenguajes externos. Para estimar la norma inducida usar `compute_induced_norm(Q,@norm_4)`; la primera salida es escalar y las opcionales son el candidato y diagnósticos. La matriz Q permanece fija durante el multinicio; los handles equivalentes deben implementar matemáticamente la norma 4.
+Las funciones sustantivas deben residir en `src/`; los scripts deben coordinar llamadas y visualizaciones. Mantener la documentación en español y los identificadores de código en inglés. Usar MATLAB base, sin dependencias de toolboxes adicionales ni lenguajes externos. Para estimar la norma inducida usar `compute_induced_norm(Q,@norm_4)`; la única salida es un vector columna de estimaciones para una entrada `n×n×M`, o un escalar para una matriz `n×n`. No devolver candidatos, diagnósticos ni historiales. La matriz Q permanece fija durante el multinicio; los handles equivalentes deben implementar matemáticamente la norma 4.
 
 ## Convenciones matemáticas
 
@@ -46,47 +45,9 @@ La esfera unitaria es la superficie S₄ = {x : ‖x‖₄ = 1}; la bola B₄ = 
 
 No confundir la norma inducida de una matriz con la raíz cuarta de la suma de las cuartas potencias de sus entradas. Tampoco utilizar `norm(X,4)` para obtener las normas de las columnas de una matriz: calcularlas explícitamente por columna.
 
-## Función `generate_unit_l4_vectors`
+## Vectores para ejemplos y pruebas
 
-Interfaz propuesta:
-
-```matlab
-X = generate_unit_l4_vectors(n, N)
-X = generate_unit_l4_vectors(n, N, method)
-```
-
-- `n`: entero positivo, dimensión de cada vector.
-- `N`: entero positivo, cantidad de vectores.
-- `method`: `'random'` por defecto o `'angular'` para n = 2.
-- Salida: matriz real finita n por N, con norma 4 unitaria en cada columna, dentro de tolerancia numérica.
-- Rechazar entradas inválidas con mensajes descriptivos, incluido el modo angular cuando n no sea 2.
-
-### Método general `'random'`
-
-Generar Z con `randn(n,N)` y normalizar cada columna:
-
-```matlab
-scales = sum(abs(Z).^4, 1).^(1/4);
-X = Z ./ scales;
-```
-
-Regenerar cualquier columna de escala cero antes de dividir. La función debe aceptar n = 1; en ese caso la superficie consiste en los puntos -1 y +1 y se permiten repeticiones.
-
-Documentar claramente que este procedimiento genera puntos válidos sobre S₄, pero no garantiza uniformidad respecto al área de superficie ni a la medida de cono de la esfera de norma 4. No llamar Haar a este muestreo. La uniformidad superficial no es un requisito de esta etapa.
-
-### Método `'angular'` para visualizar n = 2
-
-Generar N ángulos igualmente espaciados en [0, 2π), sin repetir el extremo, y normalizar las direcciones:
-
-```matlab
-theta = (0:N-1) * (2*pi/N);
-Z = [cos(theta); sin(theta)];
-X = Z ./ sum(abs(Z).^4, 1).^(1/4);
-```
-
-Exigir N ≥ 4 en este modo. Las columnas quedan ordenadas alrededor del contorno y pueden conectarse sin cruces artificiales. El espaciado angular no equivale a espaciado uniforme por longitud de arco.
-
-No repetir la primera columna en la salida de la función; cerrar la curva únicamente al graficar. Una cantidad finita de puntos aproxima el contorno, no enumera toda la esfera.
+Los scripts generan direcciones gaussianas con `randn(n,N)` o direcciones angulares con `[cos(theta); sin(theta)]` y normalizan por columnas con `norm_4(Z,1)`. El estimador genera internamente sus inicios gaussianos y los normaliza mediante el handle recibido. Esta construcción produce puntos sobre S₄, sin garantizar uniformidad respecto al área ni a la medida de cono. El espaciado angular no equivale a espaciado uniforme por longitud de arco; cerrar la curva solamente al graficar. No se necesita una función pública de generación de vectores.
 
 ## Función `haar_so`
 
@@ -124,7 +85,7 @@ Secuencia requerida:
 
 1. Definir una semilla explícita al comienzo, por ejemplo `rng(42,'twister')`.
 2. Definir `n = 2` y `N = 1000` como parámetros visibles.
-3. Generar `X = generate_unit_l4_vectors(n,N,'angular')`.
+3. Generar `theta = (0:N-1)*(2*pi/N)`, `Z = [cos(theta); sin(theta)]` y `X = Z ./ norm_4(Z,1)`.
 4. Generar una sola matriz `A = haar_so(n)` y mostrarla en la consola.
 5. Calcular `Y = A*X`. No volver a normalizar Y: eso borraría la información de la transformación que se quiere observar.
 6. Comprobar las normas de X, la ortogonalidad de A y su determinante; mostrar los errores numéricos.

@@ -58,7 +58,12 @@ function [inducedNormValues, relativeGaps] = ...
 
         % Keep the rotation stream aligned with the maximum-start run.
         rng(startsState);
-        generate_unit_l4_vectors(dimension, startCounts(end), 'random');
+        directions = randn(dimension, startCounts(end));
+        zeroColumns = ~any(directions, 1);
+        while any(zeroColumns)
+            directions(:,zeroColumns) = randn(dimension, sum(zeroColumns));
+            zeroColumns = ~any(directions, 1);
+        end
     end
 
     assert(all(all(diff(inducedNormValues, 1, 2) >= -128*eps)), ...

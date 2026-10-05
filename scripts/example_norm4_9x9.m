@@ -20,10 +20,6 @@ baseOptions = struct('MaxIterations', 1000, 'MaxWorkingMemoryMB', 128);
 norm4_norms = struct();
 fieldNames = cell(1, numel(startCounts));
 elapsedByStartCount = zeros(1, numel(startCounts));
-for j = 1:numel(startCounts)
-    fieldNames{j} = sprintf('starts%d', startCounts(j));
-    norm4_norms.(fieldNames{j}) = zeros(numMatrices, 1);
-end
 
 fprintf('Computing induced 4-norms for %d matrices in SO(%d)...\n', ...
     numMatrices, n);
@@ -34,6 +30,7 @@ for k = 1:numMatrices
     rotations(:,:,k) = haar_so(n);
 end
 for j = 1:numel(startCounts)
+    fieldNames{j} = sprintf('starts%d', startCounts(j));
     options = baseOptions;
     options.NumRandomStarts = startCounts(j);
     startTimer = tic;
@@ -47,13 +44,19 @@ theoreticalUpperBound = n^(1/4);
 
 fprintf('\n--- Results by number of random starts ---\n');
 referenceValues = norm4_norms.(fieldNames{1});
+means = zeros(size(startCounts));
+medians = zeros(size(startCounts));
+standardDeviations = zeros(size(startCounts));
 for j = 1:numel(startCounts)
     values = norm4_norms.(fieldNames{j});
+    means(j) = mean(values);
+    medians(j) = median(values);
+    standardDeviations(j) = std(values);
     maxDifference = max(abs(values - referenceValues));
     fprintf(['%4d random starts: mean %.12f | median %.12f | ' ...
         'std %.12f | %.3f s total | max. difference from starts1 %.3e\n'], ...
-        startCounts(j), mean(values), median(values), ...
-        std(values), elapsedByStartCount(j), maxDifference);
+        startCounts(j), means(j), medians(j), ...
+        standardDeviations(j), elapsedByStartCount(j), maxDifference);
     assert(all(values >= 1 - 1e-12 & ...
         values <= theoreticalUpperBound + 1e-12), ...
         'An estimate falls outside the theoretical bounds.');
@@ -76,7 +79,7 @@ for j = 1:numel(startCounts)
     ylabel('Number of matrices');
     title(sprintf(['%d random starts\nmean = %.6f | median = %.6f\n' ...
         'standard deviation = %.6f | time = %.1f s'], startCounts(j), ...
-        mean(values), median(values), std(values), ...
+        means(j), medians(j), standardDeviations(j), ...
         elapsedByStartCount(j)));
 end
 

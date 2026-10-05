@@ -14,7 +14,9 @@ rng(42, 'twister');
 n = 2;
 N = 1000;
 Q = haar_so(n);
-X = generate_unit_l4_vectors(n, N, 'angular');
+theta = (0:N-1) * (2*pi/N);
+directions = [cos(theta); sin(theta)];
+X = directions ./ norm_4(directions, 1);
 Y = Q * X;
 Xclosed = [X, X(:,1)];
 Yclosed = [Y, Y(:,1)];
@@ -43,7 +45,6 @@ xlabel('u_1'); ylabel('u_2');
 title('S_4 and its image Q(S_4)');
 legend('Original: ||x||_4=1', 'Transformed: y=Qx', 'Location', 'best');
 hold off;
-theta = (0:N-1) * (2*pi/N);
 amplitudes = zeros(1,N);
 for k = 1:N
     amplitudes(k) = norm_4(Q * X(:,k));
@@ -83,7 +84,8 @@ options = struct('NumRandomStarts', 50, 'MaxIterations', 1000);
 qNorm4 = compute_induced_norm(Q, normHandle, options);
 N = 10000;
 theta = (0:N-1) * (2*pi/N);
-X = generate_unit_l4_vectors(2, N, 'angular');
+directions = [cos(theta); sin(theta)];
+X = directions ./ normHandle(directions, 1);
 amplitudes = zeros(1,N);
 for k = 1:N
     amplitudes(k) = normHandle(Q * X(:,k));

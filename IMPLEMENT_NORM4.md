@@ -1,3 +1,5 @@
+> Documento histórico de la implementación inicial. La interfaz vigente desde 2026-10-02 devuelve únicamente un vector columna para matrices `n×n×M`; se eliminaron las salidas adicionales y `StoreHistory`. Para el contrato actual y la ejecución, consultar `README.md` y `docs/induced_norm4_algorithm.qmd`. Los ejemplos de interfaz y diagnósticos que siguen están obsoletos.
+
 # Implementar la norma inducida 4 en el proyecto MATLAB 4-norm
 
 ## Encargo para Codex

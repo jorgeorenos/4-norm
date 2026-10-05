@@ -5,7 +5,8 @@ addpath(fullfile(projectRoot, 'src', '4-norm'));
 addpath(fullfile(projectRoot, 'src', 'helpers'));
 rng(42, 'twister');
 Q = haar_so(2);
-X0 = generate_unit_l4_vectors(2, 10, 'random');
+starts = randn(2, 10);
+X0 = starts ./ norm_4(starts, 1);
 iterationBudgets = [1 2 5 10 20 50 100 250];
 options = struct('NormTolerance', 1e-10, ...
     'StationarityTolerance', 1e-8, 'FeasibilityTolerance', 1e-12);
