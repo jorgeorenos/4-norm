@@ -28,7 +28,8 @@ REFERENCE_TOLERANCE = 1e-8;
 rng(SEED, 'twister');
 normHandle = @norm_4;
 baseOptions = struct('MaxIterations', MAX_ITERATIONS, ...
-    'NormTolerance', NORM_TOLERANCE);
+    'NormTolerance', NORM_TOLERANCE, ...
+    'StationarityTolerance', 1e-8, 'FeasibilityTolerance', 1e-12);
 numStartCounts = numel(START_COUNTS);
 
 rotations = zeros(DIMENSION, DIMENSION, N_MATRICES);
@@ -38,20 +39,18 @@ for matrix_index = 1:N_MATRICES
     Q = haar_so(DIMENSION);
     rotations(:, :, matrix_index) = Q;
 
-    % Restablecer este estado conserva conjuntos anidados de inicios.
-    startsState = rng;
-    for start_count_index = 1:numStartCounts
-        options = baseOptions;
-        options.NumRandomStarts = START_COUNTS(start_count_index);
-
-        rng(startsState);
-        norm_q_values(matrix_index, start_count_index) = ...
-            compute_induced_norm(Q, normHandle, options);
+    % Una sola iteracion por lotes conserva las mismas direcciones iniciales
+    % para todos los conteos. Los mejores prefijos sustituyen las 11 llamadas
+    % separadas sin cambiar la matriz Q ni el estado de la secuencia aleatoria.
+    starts = randn(DIMENSION, MAX_STARTS);
+    zeroColumns = ~any(starts, 1);
+    while any(zeroColumns)
+        starts(:,zeroColumns) = randn(DIMENSION, sum(zeroColumns));
+        zeroColumns = ~any(starts, 1);
     end
-
-    % Avanzar el estado como en una estimacion con MAX_STARTS direcciones.
-    rng(startsState);
-    generate_unit_l4_vectors(DIMENSION, MAX_STARTS, 'random');
+    perStartValues = power_norm4_multiple_starts(Q, normHandle, starts, baseOptions);
+    bestPrefix = cummax(perStartValues(:));
+    norm_q_values(matrix_index, :) = bestPrefix(START_COUNTS).';
 end
 
 % El mejor valor sobre conjuntos anidados no debe disminuir.

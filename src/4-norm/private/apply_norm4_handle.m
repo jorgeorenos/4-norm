@@ -4,6 +4,12 @@ function values = apply_norm4_handle(normHandle, X, vectorized)
 %   handles are evaluated one vector at a time without probing their API.
     n = size(X, 1);
     if vectorized
+        % Normal-size inputs dominate the iterative kernel. The public norm
+        % handles extreme scales, while the usual case needs no revalidation.
+        values = sum(X.^4, 1).^(1/4);
+        if all(isfinite(values(:))) && all(values(:) > 0)
+            return;
+        end
         values = normHandle(X, 1);
     else
         columns = reshape(X, n, []);

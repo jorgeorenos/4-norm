@@ -12,9 +12,8 @@ options = struct('NormTolerance', 1e-10, ...
 values = zeros(size(X0,2), numel(iterationBudgets));
 for k = 1:numel(iterationBudgets)
     options.MaxIterations = iterationBudgets(k);
-    for j = 1:size(X0,2)
-        values(j,k) = power_norm4_single_start(Q, @norm_4, X0(:,j), options);
-    end
+    % Keep all ten fixed starts in one vectorized power iteration.
+    values(:,k) = power_norm4_multiple_starts(Q, @norm_4, X0, options);
 end
 figure;
 semilogx(iterationBudgets, values.', '-o');

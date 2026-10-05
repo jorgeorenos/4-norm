@@ -8,7 +8,7 @@ rng(42, 'twister');
 n = 9;
 numMatrices = 1000;
 numRepeats = 3;
-options = struct('NumRandomStarts', 25, 'MaxIterations', 1000, ...
+options = struct('NumRandomStarts', 100, 'MaxIterations', 1000, ...
     'MaxWorkingMemoryMB', 128);
 Qbatch = zeros(n,n,numMatrices);
 for k = 1:numMatrices
