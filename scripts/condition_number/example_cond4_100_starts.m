@@ -9,14 +9,14 @@ addpath(fullfile(projectRoot, 'src', 'helpers'));
 rng(42, 'twister');
 n = 9;
 numMatrices = 100000;
-numStarts = 75;
+numStarts = 100;
 rotations = zeros(n, n, numMatrices);
 for k = 1:numMatrices
     rotations(:,:,k) = haar_so(n);
 end
 
 options = struct('NumRandomStarts', numStarts, 'MaxIterations', 1000, ...
-    'MaxWorkingMemoryMB', 128, 'ScreenIterations', 3, 'NumFinalists', 3);
+    'MaxWorkingMemoryMB', 128, 'ScreenIterations', 2, 'NumFinalists', 4);
 timer = tic;
 estimates = compute_4_cond(rotations, options);
 elapsedSeconds = toc(timer);
