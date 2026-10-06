@@ -14,14 +14,19 @@ function values = power_norm4_multiple_starts(Q, starts, options)
     bestValues = oldValues;
     feasibility = abs(norm4_columns(X) - 1);
     bestValues(feasibility > options.FeasibilityTolerance) = -Inf;
-    V = pagemtimes(Q, 'transpose', Y.^3, 'none');
+    % Elementwise powers are evaluated with multiplications or with
+    % exp(log()/k): the .^ operator calls the scalar power function per
+    % element and is orders of magnitude slower for integer or 1/3
+    % exponents.
+    cube = Y.*Y.*Y;
+    V = pagemtimes(Q, 'transpose', cube, 'none');
     active = true(1, numStarts, numMatrices);
     pageIndices = 1:numMatrices;
     values = -Inf(numStarts, numMatrices);
     startIds = repmat(1:numStarts, 1, 1, numMatrices);
 
     for k = 1:options.MaxIterations
-        u = sign(V).*abs(V).^(1/3);
+        u = sign(V).*exp(log(abs(V))/3);
         active = active & all(isfinite(u), 1) & any(u ~= 0, 1);
         % Inactive trajectories use a harmless direction so normalization
         % never receives an invalid or zero denominator.
@@ -40,7 +45,8 @@ function values = power_norm4_multiple_starts(Q, starts, options)
 
         changeScale = max(1, max(abs(newValues), abs(oldValues)));
         active = active & newValues >= oldValues - 128*eps(changeScale);
-        vNew = pagemtimes(Q, 'transpose', Y.^3, 'none');
+        cube = Y.*Y.*Y;
+        vNew = pagemtimes(Q, 'transpose', cube, 'none');
         lambda = newValues.^4;
         active = active & isfinite(lambda) & all(isfinite(vNew), 1);
         relativeChange = abs(newValues - oldValues) ./ changeScale;

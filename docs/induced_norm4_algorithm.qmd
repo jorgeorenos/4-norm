@@ -39,7 +39,9 @@ Las opciones son `NumRandomStarts` (50), `MaxIterations` (1000), `NormTolerance`
 
 ## Procesamiento por páginas
 
-Los inicios de un bloque tienen tamaño `n×S×B`: una página por matriz y una columna por inicio. `pagemtimes` calcula simultáneamente los productos por $Q$ y su traspuesta. Una máscara controla la parada de cada trayectoria; se retira una matriz cuando todos sus inicios terminaron. Cuando se alcanza el límite de iteraciones se guardan también las amplitudes de las páginas pendientes. El orden de las salidas se conserva al retirar páginas.
+Los inicios de un bloque tienen tamaño `n×S×B`: una página por matriz y una columna por inicio. `pagemtimes` calcula simultáneamente los productos por $Q$ y su traspuesta. Una máscara controla la parada de cada trayectoria; se retira una matriz cuando todos sus inicios terminaron. Cuando se alcanza el límite de iteraciones se guardan también las amplitudes de las páginas pendientes. El orden de las salidas se conserva al retirar páginas. Las potencias elementales del kernel se evalúan con multiplicaciones repetidas (cuarta potencia y cubo) y la raíz cúbica con signo mediante $\exp(\log(\lvert v\rvert)/3)$, pues el operador `.^` invoca la función de potencia escalar por elemento y dominaría el costo; los valores difieren del operador directo solo en redondeo.
+
+Con la criba activada, el cribado itera todos los inicios en bloques acotados por `MaxWorkingMemoryMB` y acumula los finalistas de todas las matrices; el refinamiento se ejecuta después en bloques mayores, estimados con la huella de memoria por finalista. Los resultados por matriz no dependen del agrupamiento en bloques y el consumo de la secuencia aleatoria es el mismo que con el refinamiento por bloques pequeños.
 
 Todas las normas se evalúan internamente mediante un kernel fijo por columnas y páginas, con una ruta escalada para evitar extremos innecesarios. No se aceptan handles de norma alternativos.
 

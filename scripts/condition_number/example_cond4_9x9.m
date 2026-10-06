@@ -13,11 +13,11 @@ addpath(fullfile(projectRoot, 'src', 'helpers'));
 rng(42, 'twister');
 
 n = 9;
-numMatrices = 1000;
-startCounts = [1, 10, 25, 50, 100, 250, 500, 750, 1000];
+numMatrices = 1000000;
+startCounts = [10, 25, 50, 75,100, 250, 500, 750, 1000];
 baseOptions = struct('MaxIterations', 1000, 'MaxWorkingMemoryMB', 128);
-screenIterations = 2;
-numFinalists = 4;
+screenIterations = 3;
+numFinalists = 3;
 screenMinStarts = 50;
 
 % Each field is a numMatrices-by-1 vector of condition number estimates.
