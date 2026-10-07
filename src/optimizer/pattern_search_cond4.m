@@ -8,7 +8,13 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
 %
 %   The same BANKS.forward and BANKS.inverse starts are used for every
 %   candidate. Initial and returned rotations are canonicalized toward the
-%   identity. No global minimum is certified. The function consumes no RNG.
+%   identity. SEARCHOPTIONS.StageIterationLimits and StageRetainedCounts can
+%   define a progressive schedule. The first stage uses every initial point;
+%   later stages retain the lowest current estimates without resetting their
+%   rotations, meshes, counters, or direction order. Pruned trajectories have
+%   termination reason 'StagePruned'. No global minimum is certified. The
+%   function consumes no RNG. RESULT.functionCounts includes each initial and
+%   poll evaluation, but not the final canonical reevaluation.
     if nargin < 5
         normOptions = struct();
     end
@@ -29,6 +35,7 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
             'P must be a finite real nonsingular double matrix matching the rotations.');
     end
     validate_rotations(initialRotations);
+    validate_stage_options(options, numStarts);
 
     currentRotations = canonicalize_rotations_by_trace_batch(initialRotations);
     initialValues = compute_cond4_pq_fixed_starts( ...
@@ -46,6 +53,7 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
     directionSigns = repmat([1; -1], planeCount, 1);
     directionCount = numel(directionPlanes);
     outerIteration = 0;
+    stageIndex = 1;
 
     while any(~terminated)
         outerIteration = outerIteration + 1;
@@ -97,6 +105,22 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
         terminationReasons(reachedIterations) = {'MaxIterations'};
         terminated = terminated | reachedMesh | reachedEvaluations | reachedIterations;
 
+        if ~isempty(options.StageIterationLimits) && ...
+                stageIndex < numel(options.StageIterationLimits) && ...
+                outerIteration >= options.StageIterationLimits(stageIndex)
+            stageIndex = stageIndex + 1;
+            activeIndices = find(~terminated);
+            retainCount = min(options.StageRetainedCounts(stageIndex), ...
+                numel(activeIndices));
+            if retainCount < numel(activeIndices)
+                [~, ranking] = sortrows( ...
+                    [currentValues(activeIndices), activeIndices], [1, 2]);
+                prunedIndices = activeIndices(ranking(retainCount + 1:end));
+                terminationReasons(prunedIndices) = {'StagePruned'};
+                terminated(prunedIndices) = true;
+            end
+        end
+
         if strcmp(options.Display, 'iter')
             fprintf('Pattern Search iteration %d: active %d, best %.12f\n', ...
                 outerIteration, sum(~terminated), min(currentValues));
@@ -147,7 +171,8 @@ function options = complete_search_options(options)
         'MaxMeshSize', 0.25, 'MeshExpansionFactor', 2, ...
         'MeshContractionFactor', 0.5, 'FunctionTolerance', 1e-8, ...
         'MaxIterations', 50, 'MaxFunctionEvaluations', 2000, ...
-        'Display', 'final');
+        'Display', 'final', 'StageIterationLimits', [], ...
+        'StageRetainedCounts', []);
     if isempty(options)
         options = struct();
     end
@@ -195,6 +220,28 @@ function options = complete_search_options(options)
             any(strcmp(options.Display, {'off', 'iter', 'final'})))
         error('optimizer:pattern_search_cond4:InvalidDisplay', ...
             'Display must be ''off'', ''iter'', or ''final''.');
+    end
+end
+
+function validate_stage_options(options, numStarts)
+    limits = options.StageIterationLimits;
+    counts = options.StageRetainedCounts;
+    if isempty(limits) && isempty(counts)
+        return
+    end
+    if isempty(limits) || isempty(counts) || ...
+            ~isa(limits, 'double') || ~isrow(limits) || ~isreal(limits) || ...
+            any(~isfinite(limits)) || any(limits < 1) || ...
+            any(limits ~= floor(limits)) || any(diff(limits) <= 0) || ...
+            limits(end) ~= options.MaxIterations || ...
+            ~isa(counts, 'double') || ~isrow(counts) || ~isreal(counts) || ...
+            any(~isfinite(counts)) || any(counts < 1) || ...
+            any(counts ~= floor(counts)) || numel(counts) ~= numel(limits) || ...
+            counts(1) ~= numStarts || any(diff(counts) >= 0)
+        error('optimizer:pattern_search_cond4:InvalidStageSchedule', ...
+            ['StageIterationLimits and StageRetainedCounts must be equal-length ', ...
+            'double row vectors. Limits must increase to MaxIterations, and ', ...
+            'counts must decrease from the number of initial rotations.']);
     end
 end
 

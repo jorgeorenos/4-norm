@@ -1,0 +1,488 @@
+---
+title: "Minimización de κ₄(PQ) mediante Pattern Search"
+subtitle: "Formulación, estimación determinista y refinamiento progresivo sobre SO(K)"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: false
+    html-math-method: mathjax
+  pdf:
+    toc: true
+    number-sections: true
+lang: es
+---
+
+## Objetivo del documento
+
+Este documento describe el problema numérico resuelto por `pattern_search_cond4`, la función objetivo que realmente se evalúa y el algoritmo de búsqueda utilizado para modificar una rotación $Q\in SO(K)$. También explica por qué se usan bancos fijos de vectores, cómo se construyen los sondeos con rotaciones de Givens, cómo cambia el tamaño de la malla y cómo se descartan progresivamente trayectorias para reducir el tiempo de cómputo.
+
+El procedimiento es una búsqueda local aplicada a una estimación multinicio del número de condición. Por tanto, el resultado es el mejor candidato encontrado dentro del presupuesto especificado: no certifica el mínimo global ni calcula exactamente las normas inducidas.
+
+## Problema de optimización
+
+### Matriz de impacto y restricción de covarianza
+
+Sea $\Sigma_e\in\mathbb{R}^{K\times K}$ una matriz simétrica definida positiva y sea
+
+$$
+P=\operatorname{chol}(\Sigma_e,\text{lower}),
+\qquad PP'=\Sigma_e.
+$$
+
+Se considera la familia de matrices de impacto
+
+$$
+B(Q)=PQ,
+$$
+
+con
+
+$$
+Q\in SO(K)
+=\left\{Q\in\mathbb{R}^{K\times K}:Q'Q=I_K,\ \det(Q)=1\right\}.
+$$
+
+La multiplicación por una rotación no altera la covarianza reconstruida:
+
+$$
+B(Q)B(Q)'
+=(PQ)(PQ)'
+=PQQ'P'
+=PP'
+=\Sigma_e.
+$$
+
+Así, todas las matrices $PQ$ consideradas reproducen la misma matriz de covarianza. La optimización solo elige, dentro de esa familia, una orientación con un número de condición estimado menor.
+
+### Norma inducida 4
+
+Para un vector $x\in\mathbb{R}^K$, la norma 4 es
+
+$$
+\|x\|_4
+=\left(\sum_{j=1}^{K}|x_j|^4\right)^{1/4}.
+$$
+
+La norma matricial inducida correspondiente es
+
+$$
+\|A\|_{4\to4}
+=\max_{x\ne0}\frac{\|Ax\|_4}{\|x\|_4}
+=\max_{\|x\|_4=1}\|Ax\|_4.
+$$
+
+El número de condición que interesa minimizar es
+
+$$
+\kappa_4(A)
+=\|A\|_{4\to4}\,\|A^{-1}\|_{4\to4}.
+$$
+
+Por tanto, el problema ideal es
+
+$$
+\boxed{
+\min_{Q\in SO(K)}
+F(Q),
+\qquad
+F(Q)=\kappa_4(PQ)
+=\|PQ\|_{4\to4}\,\|(PQ)^{-1}\|_{4\to4}
+}
+$$
+
+La estimación de normas matriciales $p$ inducidas mediante generalizaciones del método de potencia se estudia, por ejemplo, en [Higham (1992)](https://doi.org/10.1007/BF01396242).
+
+### Cálculo de la inversa
+
+Aunque $Q^{-1}=Q'$, la matriz $PQ$ no es ortogonal en general. En consecuencia,
+
+$$
+(PQ)^{-1}=Q'P^{-1},
+$$
+
+pero normalmente
+
+$$
+(PQ)^{-1}\ne(PQ)'.
+$$
+
+La implementación calcula primero
+
+$$
+R_P=P\backslash I_K,
+$$
+
+mediante un sistema lineal y forma después
+
+$$
+(PQ)^{-1}=Q'R_P.
+$$
+
+No se llama a `inv(P)` y no se sustituye incorrectamente la inversa por la traspuesta de $PQ$.
+
+## La función objetivo que evalúa el programa
+
+### Por qué se trata de una estimación
+
+Para una matriz $A$, obtener $\|A\|_{4\to4}$ requiere resolver un problema de maximización sobre la esfera de norma 4. El proyecto usa una iteración de potencia generalizada desde varios vectores iniciales y conserva la mayor amplitud factible encontrada. Con un número finito de inicios, el resultado es una estimación
+
+$$
+\widehat{\nu}_4(A;X)
+\leq \|A\|_{4\to4},
+$$
+
+que depende del banco de inicios $X$.
+
+Dados dos bancos
+
+$$
+X_f\in\mathbb{R}^{K\times S},
+\qquad
+X_i\in\mathbb{R}^{K\times S},
+$$
+
+la función objetivo numérica es
+
+$$
+\widehat{F}(Q)
+=
+\widehat{\nu}_4(PQ;X_f)
+\widehat{\nu}_4(Q'P^{-1};X_i).
+$$
+
+`banks.forward` contiene $X_f$ y `banks.inverse` contiene $X_i$. Los dos bancos son independientes entre sí, pero permanecen fijos durante toda la optimización.
+
+::: {.callout-important title="Comparaciones deterministas"}
+Cada candidato debe evaluarse con exactamente los mismos bancos. Si se generaran nuevos vectores en cada llamada, dos matrices podrían recibir puntuaciones diferentes por el muestreo y no únicamente por su valor de $Q$. Los bancos fijos convierten la función objetivo exterior en una función determinista para las entradas y opciones dadas.
+:::
+
+El ejemplo usa bancos distintos para dos tareas:
+
+1. **Selección inicial:** puntuar rotaciones Haar y conservar las más prometedoras.
+2. **Optimización:** comparar todos los puntos iniciales y todos los sondeos de Pattern Search con un segundo par de bancos.
+
+El número de columnas de los bancos determina el número de inicios de la estimación. En el ejemplo SO(9), `numOptimizationStarts = 75` significa que cada factor de $\widehat{F}(Q)$ se estima inicialmente desde 75 direcciones. No representa la cantidad de matrices $Q$ que optimiza Pattern Search.
+
+### Criba interna del estimador
+
+Para cada factor de la condición, los 75 inicios se someten primero a `ScreenIterations = 2`. Solo los `NumFinalists = 4` mejor puntuados vuelven a iterarse desde sus direcciones originales con un máximo de 500 iteraciones. Esta criba pertenece al estimador de la norma. Es distinta del descarte progresivo de matrices $Q$ que se describe más adelante.
+
+## Construcción de los puntos iniciales
+
+El ejemplo genera 10000 matrices Haar de $SO(9)$, las puntúa por lotes con los bancos de selección y conserva las 100 estimaciones más bajas. La generación Haar se basa en una factorización QR gaussiana con corrección de los signos de la diagonal de $R$, siguiendo el procedimiento descrito por [Mezzadri (2007)](https://arxiv.org/abs/math-ph/0609050).
+
+Las rotaciones seleccionadas se canonicalizan hacia la identidad. Para una rotación $Q$, se busca una permutación con signos $S\in SO(K)$ que maximice
+
+$$
+\operatorname{tr}(QS).
+$$
+
+Esto equivale a minimizar la distancia de Frobenius a la identidad porque
+
+$$
+\|QS-I_K\|_F^2
+=2K-2\operatorname{tr}(QS).
+$$
+
+Para el número de condición exacto, las matrices $Q$ y $QS$ representan orientaciones equivalentes: una permutación con signos preserva la norma vectorial 4. Sin embargo, una estimación construida con bancos finitos no es exactamente invariante ante esas transformaciones. Por ello, la canonicalización se realiza antes de iniciar la búsqueda y al terminarla, pero no dentro de cada sondeo.
+
+## Pattern Search sobre SO(K)
+
+### Idea general
+
+Pattern Search es una familia de métodos de búsqueda directa: compara valores de la función objetivo en un conjunto estructurado de direcciones sin calcular gradientes. La teoría clásica para este tipo de métodos se desarrolla en [Torczon (1997)](https://doi.org/10.1137/S1052623493250780) y en el análisis de búsquedas por patrones generalizadas de [Audet y Dennis (2002)](https://doi.org/10.1137/S1052623400378742).
+
+La implementación del proyecto adapta esa idea a $SO(K)$. En lugar de sumar vectores de coordenadas a $Q$, multiplica $Q$ por pequeñas rotaciones de Givens. De esta forma, cada candidato permanece en $SO(K)$ salvo error de redondeo.
+
+::: {.callout-note title="Alcance de las garantías"}
+Las referencias anteriores explican la teoría general de Pattern Search. La implementación de este proyecto usa una función objetivo estimada y un descarte progresivo heurístico; no se afirma que las garantías teóricas de esos trabajos se transfieran automáticamente a este algoritmo completo.
+:::
+
+### Rotaciones de Givens
+
+Para cada par de índices $1\leq i<j\leq K$, se define una rotación de Givens $G_{ij}(\theta)$. Es igual a la identidad excepto en las filas y columnas $i,j$, donde contiene el bloque
+
+$$
+\begin{bmatrix}
+\cos\theta & -\sin\theta\\
+\sin\theta & \cos\theta
+\end{bmatrix}.
+$$
+
+Como
+
+$$
+G_{ij}(\theta)'G_{ij}(\theta)=I_K,
+\qquad
+\det G_{ij}(\theta)=1,
+$$
+
+si $Q\in SO(K)$, entonces
+
+$$
+Q_{\mathrm{trial}}
+=QG_{ij}(\theta)
+\in SO(K).
+$$
+
+En cada tamaño de malla $\Delta>0$ se prueban ambos signos:
+
+$$
+Q_{\mathrm{trial}}
+=QG_{ij}(\sigma\Delta),
+\qquad
+\sigma\in\{-1,+1\}.
+$$
+
+El número de direcciones de sondeo es
+
+$$
+2\binom{K}{2}=K(K-1).
+$$
+
+Para $K=9$ existen 36 planos de coordenadas y 72 direcciones con signo.
+
+### Regla de mejora suficiente
+
+Sea $Q_m^{(t)}$ el candidato corriente de la trayectoria $m$ en la iteración exterior $t$, con valor
+
+$$
+f_m^{(t)}=\widehat{F}\!\left(Q_m^{(t)}\right)
+$$
+
+y tamaño de malla $\Delta_m^{(t)}$. Un sondeo se acepta cuando
+
+$$
+\widehat{F}\!\left(
+Q_m^{(t)}G_{ij}(\sigma\Delta_m^{(t)})
+\right)
+<
+f_m^{(t)}
+-	au_f\max\left(1,|f_m^{(t)}|\right),
+$$
+
+con $\tau_f=$ `FunctionTolerance`.
+
+La búsqueda es **oportunista**: para cada trayectoria se acepta la primera dirección que cumple la desigualdad. Esa trayectoria deja de sondearse durante el resto de la iteración. Las trayectorias que todavía no encontraron mejora se evalúan juntas por páginas para aprovechar las operaciones matriciales por lotes.
+
+El orden de las 72 direcciones se desplaza circularmente entre iteraciones. Así, la misma dirección no ocupa siempre la primera posición del sondeo.
+
+### Actualización de la malla
+
+Si la trayectoria encuentra una mejora, el paso angular se expande:
+
+$$
+\Delta_m^{(t+1)}
+=
+\min\left(
+\Delta_{\max},
+\gamma_{\mathrm{exp}}\Delta_m^{(t)}
+\right),
+\qquad
+\gamma_{\mathrm{exp}}>1.
+$$
+
+Si no encuentra ninguna mejora después del sondeo disponible, el paso se contrae:
+
+$$
+\Delta_m^{(t+1)}
+=
+gamma_{\mathrm{con}}\Delta_m^{(t)},
+\qquad
+0<\gamma_{\mathrm{con}}<1.
+$$
+
+En el ejemplo,
+
+$$
+\Delta_0=0.04,
+\qquad
+\Delta_{\max}=0.16,
+\qquad
+\gamma_{\mathrm{exp}}=2,
+\qquad
+\gamma_{\mathrm{con}}=0.5.
+$$
+
+Cada trayectoria termina individualmente cuando se cumple primero uno de los siguientes criterios:
+
+- `MeshTolerance`: $\Delta_m<10^{-3}$;
+- `MaxFunctionEvaluations`: alcanza 3000 evaluaciones contabilizadas;
+- `MaxIterations`: alcanza 50 iteraciones;
+- `StagePruned`: se descarta en una frontera del calendario progresivo.
+
+### Algoritmo implementado
+
+El procedimiento puede resumirse así:
+
+1. Canonicalizar todas las rotaciones iniciales y evaluar $\widehat{F}$ con los bancos de optimización.
+2. Asignar a cada trayectoria el tamaño de malla inicial $\Delta_0$.
+3. Para cada iteración exterior:
+   1. construir el orden circular de las direcciones $(i,j,\sigma)$;
+   2. evaluar por lotes únicamente las trayectorias activas que todavía no han mejorado en esa iteración;
+   3. aceptar, para cada trayectoria, su primera mejora suficiente;
+   4. expandir la malla de las trayectorias exitosas y contraer la de las fallidas;
+   5. aplicar los criterios de terminación;
+   6. si la iteración coincide con una frontera progresiva, ordenar las trayectorias activas y descartar las excedentes.
+4. Canonicalizar nuevamente todos los candidatos finales y reevaluarlos con los mismos bancos.
+5. Para cada trayectoria, no devolver una estimación canonicalizada peor que su punto inicial canonicalizado.
+6. Devolver la mejor rotación final y los diagnósticos de todas las trayectorias.
+
+## Descarte progresivo de matrices
+
+### Motivación
+
+La búsqueda completa asigna el mismo máximo de 50 iteraciones a cada una de las 100 rotaciones iniciales. Sin embargo, el objetivo final solo necesita la mejor trayectoria. El calendario progresivo conserva diversidad al principio y concentra el presupuesto posterior en las matrices con menores valores corrientes.
+
+Las opciones son
+
+```matlab
+searchOptions.StageIterationLimits = [10, 30, 50];
+searchOptions.StageRetainedCounts = [100, 25, 5];
+```
+
+`StageIterationLimits` contiene límites acumulados de iteraciones. `StageRetainedCounts` indica cuántas trayectorias participan en cada etapa. Ambos deben ser vectores fila de la misma longitud; el primer conteo debe coincidir con el número de rotaciones iniciales, los conteos deben decrecer estrictamente y el último límite debe ser `MaxIterations`.
+
+### Calendario del ejemplo
+
+| Etapa | Iteraciones | Trayectorias activas al comenzar | Acción al terminar |
+|---:|:---:|---:|:---|
+| 1 | 1–10 | 100 | conservar las 25 mejores |
+| 2 | 11–30 | 25 | conservar las 5 mejores |
+| 3 | 31–50 | 5 | terminar por los criterios configurados |
+
+Si ninguna trayectoria termina antes por otro criterio, se descartan 75 matrices después de la iteración 10 y otras 20 después de la iteración 30. En total, 95 trayectorias reciben la razón `StagePruned` y solo 5 consumen el presupuesto completo.
+
+### Regla de selección
+
+En una frontera entre etapas se consideran las trayectorias todavía activas. Se ordenan lexicográficamente mediante
+
+$$
+\left(f_m^{(t)},m\right),
+$$
+
+es decir, primero por el valor corriente y después por el índice original. El segundo componente resuelve de forma determinista los empates. Si la siguiente etapa admite $R$ trayectorias, se conservan los primeros $R$ índices de ese orden.
+
+Una trayectoria superviviente mantiene exactamente:
+
+- su matriz corriente $Q_m^{(t)}$;
+- su valor corriente $f_m^{(t)}$;
+- su tamaño de malla $\Delta_m^{(t)}$;
+- sus contadores de iteración y evaluaciones;
+- la fase global del orden de sondeo.
+
+No se realizan llamadas independientes a un optimizador sin estado. Reiniciar Pattern Search en cada etapa cambiaría la malla, los contadores, la canonicalización intermedia y el orden de las direcciones.
+
+::: {.callout-warning title="El descarte es heurístico"}
+Una trayectoria con un valor corriente peor podría mejorar más adelante y convertirse en la ganadora. El calendario progresivo reduce trabajo, pero no es equivalente en general a completar las 100 búsquedas. La igualdad observada en el ejemplo reproducible es evidencia para esa matriz y esas semillas, no una garantía universal.
+:::
+
+## Configuración del ejemplo SO(9)
+
+### Opciones del estimador de norma
+
+| Opción | Valor | Función |
+|:---|---:|:---|
+| `numOptimizationStarts` | 75 | Columnas de cada banco forward/inverse. |
+| `MaxIterations` | 500 | Máximo de iteraciones por inicio finalista. |
+| `NormTolerance` | $10^{-10}$ | Tolerancia de cambio relativo de amplitud. |
+| `StationarityTolerance` | $10^{-8}$ | Tolerancia del residuo de estacionariedad. |
+| `FeasibilityTolerance` | $10^{-12}$ | Tolerancia de la restricción de norma 4. |
+| `MaxWorkingMemoryMB` | 128 | Presupuesto usado para formar bloques. |
+| `ScreenIterations` | 2 | Iteraciones preliminares de los 75 inicios. |
+| `NumFinalists` | 4 | Inicios refinados después de la criba. |
+
+### Opciones de Pattern Search
+
+| Opción | Valor | Función |
+|:---|---:|:---|
+| `InitialMeshSize` | 0.04 | Paso angular inicial. |
+| `MeshTolerance` | 0.001 | Umbral de terminación por malla pequeña. |
+| `MaxMeshSize` | 0.16 | Cota superior del paso angular. |
+| `MeshExpansionFactor` | 2 | Expansión después de un sondeo exitoso. |
+| `MeshContractionFactor` | 0.5 | Contracción después de un sondeo fallido. |
+| `FunctionTolerance` | $10^{-6}$ | Descenso relativo mínimo para aceptar. |
+| `MaxIterations` | 50 | Presupuesto exterior máximo. |
+| `MaxFunctionEvaluations` | 3000 | Presupuesto máximo por trayectoria. |
+| `Display` | `off` | Suprime la salida por iteración. |
+| `StageIterationLimits` | `[10, 30, 50]` | Fronteras acumuladas de las etapas. |
+| `StageRetainedCounts` | `[100, 25, 5]` | Trayectorias activas por etapa. |
+
+## Salidas y canonicalización final
+
+`pattern_search_cond4` devuelve una estructura. Sus campos principales son:
+
+| Campo | Contenido |
+|:---|:---|
+| `bestRotation` | Mejor rotación canonicalizada encontrada. |
+| `bestValue` | Valor estimado de $\kappa_4(PQ)$ para `bestRotation`. |
+| `bestStartIndex` | Índice de la trayectoria ganadora. |
+| `initialValues` | Valores iniciales bajo los bancos de optimización. |
+| `rawFinalRotations` | Candidatos al terminar los sondeos, antes de canonicalizar. |
+| `rawFinalValues` | Valores de esos candidatos dentro de la búsqueda. |
+| `finalRotations` | Candidatos finales canonicalizados. |
+| `finalValues` | Valores reevaluados después de canonicalizar. |
+| `iterations` | Iteraciones consumidas por trayectoria. |
+| `functionCounts` | Evaluación inicial y sondeos contabilizados por trayectoria. |
+| `finalMeshSizes` | Último tamaño de malla de cada trayectoria. |
+| `terminationReasons` | `MeshTolerance`, `MaxFunctionEvaluations`, `MaxIterations` o `StagePruned`. |
+
+La reevaluación canonicalizada final procesa también las trayectorias descartadas y no está incluida en `functionCounts`. Debido a la variación introducida por los bancos finitos, si una trayectoria final canonicalizada obtiene un valor peor que su punto inicial canonicalizado, se conserva el punto inicial para esa trayectoria.
+
+La matriz de impacto asociada a la ganadora se forma después como
+
+```matlab
+QStar = searchResult.bestRotation;
+impactMatrix = P*QStar;
+```
+
+La función devuelve $Q$, no devuelve $PQ$ ni $QP$.
+
+## Coste observado
+
+El benchmark reutiliza la misma $P$, las mismas rotaciones iniciales y los mismos bancos en las tres configuraciones. Realiza tres repeticiones en orden alternado y reporta la mediana.
+
+| Configuración | Tiempo de búsqueda | Reducción | Evaluaciones contabilizadas | Mejor valor |
+|:---|---:|---:|---:|---:|
+| 100 trayectorias completas | 46.128 s | — | 93780 | 6.725157502207 |
+| 50 trayectorias completas | 32.877 s | 28.73 % | 50985 | 6.725157502207 |
+| Progresiva 100→25→5 | 19.254 s | 58.26 % | 19622 | 6.725157502207 |
+
+El calendario progresivo redujo en 79.08 % las evaluaciones contabilizadas respecto de la referencia completa. La selección inicial, común a las tres configuraciones, tardó 2.006 s. Los tiempos dependen del equipo, de la carga y del estado térmico; el resultado importante es la comparación controlada dentro de la misma ejecución.
+
+Las tres configuraciones encontraron el mismo valor con esta matriz y estas semillas. Esto no demuestra que el descarte sea exacto para otras matrices, otros bancos o programas de etapas.
+
+## Ejecución y verificación
+
+Desde la raíz del proyecto:
+
+```matlab
+run(fullfile('scripts','check_optimizer','check_pattern_search_cond4.m'))
+run(fullfile('scripts','optimizer','example_cond4_9x9_pattern_search.m'))
+run(fullfile('scripts','optimizer','benchmark_cond4_9x9_pattern_search.m'))
+```
+
+Para generar la versión HTML de este documento:
+
+```bash
+quarto render docs/pattern_search_cond4.qmd --to html
+```
+
+Las comprobaciones verifican casos conocidos en dimensión 2, pertenencia a $SO(2)$, equivalencia entre evaluación escalar y por lotes, reducción de evaluaciones con el calendario progresivo y continuidad del estado de la trayectoria superviviente.
+
+## Limitaciones y trabajo pendiente
+
+- La función objetivo es una estimación basada en bancos finitos.
+- Pattern Search es local y depende de las rotaciones iniciales, del orden de sondeo y de sus presupuestos.
+- El descarte progresivo puede eliminar una trayectoria que habría mejorado posteriormente.
+- La igualdad con la búsqueda completa se verificó para el ejemplo reproducible actual, no para todas las matrices.
+- `functionCounts` no incluye la reevaluación canonicalizada final.
+- Quedan pendientes la memoria de direcciones exitosas, criterios adicionales de parada temprana y una validación sistemática con matrices y bancos independientes.
+
+## Referencias
+
+1. Virginia Torczon (1997), “On the Convergence of Pattern Search Algorithms”, *SIAM Journal on Optimization*, 7(1), 1–25. [https://doi.org/10.1137/S1052623493250780](https://doi.org/10.1137/S1052623493250780).
+2. Charles Audet y J. E. Dennis Jr. (2002), “Analysis of Generalized Pattern Searches”, *SIAM Journal on Optimization*, 13(3), 889–903. [https://doi.org/10.1137/S1052623400378742](https://doi.org/10.1137/S1052623400378742).
+3. Francesco Mezzadri (2007), “How to Generate Random Matrices from the Classical Compact Groups”, *Notices of the AMS*, 54, 592–604. [arXiv:math-ph/0609050](https://arxiv.org/abs/math-ph/0609050).
+4. Nicholas J. Higham (1992), “Estimating the Matrix $p$-Norm”, *Numerische Mathematik*, 62, 539–555. [https://doi.org/10.1007/BF01396242](https://doi.org/10.1007/BF01396242).

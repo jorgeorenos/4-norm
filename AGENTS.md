@@ -33,7 +33,7 @@ El candidato numérico no se considera necesariamente un mínimo global. `comput
 | `src/optimizer/` | Bancos fijos, evaluación de κ₄(PQ) y Pattern Search por rotaciones de Givens. |
 | `scripts/optimizer/example_cond4_9x9_pattern_search.m` | Ejemplo SO(9) de selección y refinamiento de 100 rotaciones. |
 | `scripts/check_optimizer/check_pattern_search_cond4.m` | Comprobaciones del estimador determinista y del optimizador. |
-| `docs/pattern_search_cond4.md` | Problema κ₄(PQ), semillas, bancos y algoritmo de refinamiento. |
+| `docs/pattern_search_cond4.qmd` | Problema κ₄(PQ), semillas, bancos y algoritmo de refinamiento. |
 | `docs/induced_norm4_algorithm.qmd` | Método, tolerancias y limitaciones. |
 
 Las funciones sustantivas deben residir en `src/`; los scripts deben coordinar llamadas y visualizaciones. Mantener la documentación en español y los identificadores de código en inglés. Usar MATLAB base, sin dependencias de toolboxes adicionales ni lenguajes externos. Para estimar la norma inducida de Q usar `compute_4_norm(Q,options)` y para su número de condición usar `compute_4_cond(Q,options)`; estas interfaces devuelven solo estimaciones. El optimizador de PQ tiene interfaces separadas en `src/optimizer/` y puede devolver un `struct` de candidatos y diagnósticos. La matriz evaluada permanece fija durante cada multinicio; las normas se evalúan con `norm4_columns`.
