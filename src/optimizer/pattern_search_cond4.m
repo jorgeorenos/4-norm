@@ -13,8 +13,10 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
 %   later stages retain the lowest current estimates without resetting their
 %   rotations, meshes, counters, or direction order. Pruned trajectories have
 %   termination reason 'StagePruned'. No global minimum is certified. The
-%   function consumes no RNG. RESULT.functionCounts includes each initial and
-%   poll evaluation, but not the final canonical reevaluation.
+% function consumes no RNG. RESULT.functionCounts includes each initial and
+% poll evaluation, but not the final canonical reevaluation. Set
+% SEARCHOPTIONS.TrackHistory to true to retain the accepted iterate, mesh,
+% and activity state after every outer iteration for visualization.
     if nargin < 5
         normOptions = struct();
     end
@@ -46,6 +48,22 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
     functionCounts = ones(numStarts, 1);
     terminationReasons = repmat({''}, numStarts, 1);
     terminated = false(numStarts, 1);
+    if options.TrackHistory
+        history = struct();
+        history.rotations = zeros(dimension, dimension, numStarts, ...
+            options.MaxIterations + 1);
+        history.values = NaN(numStarts, options.MaxIterations + 1);
+        history.meshSizes = NaN(numStarts, options.MaxIterations + 1);
+        history.activeAtStart = false(numStarts, options.MaxIterations + 1);
+        history.accepted = false(numStarts, options.MaxIterations + 1);
+        history.terminated = false(numStarts, options.MaxIterations + 1);
+        history.rotations(:,:,:,1) = currentRotations;
+        history.values(:,1) = currentValues;
+        history.meshSizes(:,1) = meshSizes;
+        history.activeAtStart(:,1) = true;
+    else
+        history = struct();
+    end
 
     [firstPlanes, secondPlanes] = find(triu(true(dimension), 1));
     planeCount = numel(firstPlanes);
@@ -121,6 +139,16 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
             end
         end
 
+        if options.TrackHistory
+            historyIndex = outerIteration + 1;
+            history.rotations(:,:,:,historyIndex) = currentRotations;
+            history.values(:,historyIndex) = currentValues;
+            history.meshSizes(:,historyIndex) = meshSizes;
+            history.activeAtStart(:,historyIndex) = active;
+            history.accepted(:,historyIndex) = successful;
+            history.terminated(:,historyIndex) = terminated;
+        end
+
         if strcmp(options.Display, 'iter')
             fprintf('Pattern Search iteration %d: active %d, best %.12f\n', ...
                 outerIteration, sum(~terminated), min(currentValues));
@@ -159,6 +187,17 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
     result.finalMeshSizes = meshSizes;
     result.terminationReasons = terminationReasons;
     result.options = options;
+    if options.TrackHistory
+        historyCount = outerIteration + 1;
+        history.rotations = history.rotations(:,:,:,1:historyCount);
+        history.values = history.values(:,1:historyCount);
+        history.meshSizes = history.meshSizes(:,1:historyCount);
+        history.activeAtStart = history.activeAtStart(:,1:historyCount);
+        history.accepted = history.accepted(:,1:historyCount);
+        history.terminated = history.terminated(:,1:historyCount);
+        history.outerIterations = outerIteration;
+    end
+    result.history = history;
 
     if strcmp(options.Display, 'final') || strcmp(options.Display, 'iter')
         fprintf(['Pattern Search completed %d starts. Initial best %.12f, ', ...
@@ -171,7 +210,7 @@ function options = complete_search_options(options)
         'MaxMeshSize', 0.25, 'MeshExpansionFactor', 2, ...
         'MeshContractionFactor', 0.5, 'FunctionTolerance', 1e-8, ...
         'MaxIterations', 50, 'MaxFunctionEvaluations', 2000, ...
-        'Display', 'final', 'StageIterationLimits', [], ...
+        'Display', 'final', 'TrackHistory', false, 'StageIterationLimits', [], ...
         'StageRetainedCounts', []);
     if isempty(options)
         options = struct();
@@ -220,6 +259,10 @@ function options = complete_search_options(options)
             any(strcmp(options.Display, {'off', 'iter', 'final'})))
         error('optimizer:pattern_search_cond4:InvalidDisplay', ...
             'Display must be ''off'', ''iter'', or ''final''.');
+    end
+    if ~islogical(options.TrackHistory) || ~isscalar(options.TrackHistory)
+        error('optimizer:pattern_search_cond4:InvalidTrackHistory', ...
+            'TrackHistory must be a logical scalar.');
     end
 end
 

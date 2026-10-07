@@ -38,7 +38,8 @@ assert(max(abs(batchValues - scalarValues)) < 1e-14);
 searchOptions = struct('InitialMeshSize', pi/8, 'MeshTolerance', 1e-4, ...
     'MaxMeshSize', pi/4, 'MeshExpansionFactor', 2, ...
     'MeshContractionFactor', 0.5, 'FunctionTolerance', 1e-10, ...
-    'MaxIterations', 40, 'MaxFunctionEvaluations', 200, 'Display', 'off');
+    'MaxIterations', 40, 'MaxFunctionEvaluations', 200, 'Display', 'off', ...
+    'TrackHistory', true);
 result = pattern_search_cond4(eye(2), Q45, banks, @norm4_columns, ...
     normOptions, searchOptions);
 assert(result.bestValue < result.initialValues(1) - 1e-4);
@@ -49,6 +50,10 @@ assert(isequal(rng, callerState));
 assert(result.functionCounts(1) >= 1);
 assert(result.iterations(1) >= 1);
 assert(isfield(result, 'terminationReasons'));
+assert(result.history.outerIterations == result.iterations(1));
+assert(size(result.history.rotations, 4) == result.iterations(1) + 1);
+assert(result.history.values(1,1) == result.initialValues(1));
+assert(result.history.values(1,end) == result.rawFinalValues(1));
 
 % A progressive schedule must preserve the state of the surviving trajectory
 % while pruning the other starts after the first stage.
