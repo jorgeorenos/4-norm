@@ -2,11 +2,11 @@
 
 ## Objetivo y alcance actual
 
-Construir un proyecto MATLAB para explorar los componentes del número de condición bajo la norma inducida 4. Se incluyen la generación de vectores unitarios, matrices Haar en SO(n), geometría en dimensión 2, una estimación por potencia generalizada con multinicio de la norma inducida 4 de Q en SO(n) y la estimación del número de condición κ₄(Q) = ‖Q‖₄‖Qᵀ‖₄ para Q en SO(n).
+Construir un proyecto MATLAB para explorar los componentes del número de condición bajo la norma inducida 4. Se incluyen la generación de vectores unitarios, matrices Haar en SO(n), geometría en dimensión 2, una estimación por potencia generalizada con multinicio de la norma inducida 4, la estimación de κ₄(Q) para Q en SO(n) y el refinamiento de rotaciones canonicalizadas para reducir κ₄(PQ), con P fija, mediante Pattern Search sobre rotaciones de Givens.
 
 Este archivo debe ubicarse en la raíz del proyecto `4-norm` y orientar el trabajo de Codex en todo el repositorio. Si la carpeta actual ya es la raíz del proyecto, no crear otra carpeta `4-norm` anidada.
 
-El candidato numérico no se considera necesariamente x* global. El número de condición se estima mediante `compute_4_cond`, que usa la traspuesta como inversa exacta en SO(n); no implementar todavía optimización de Q, minimización del número de condición ni evaluación de PQ.
+El candidato numérico no se considera necesariamente un mínimo global. `compute_4_cond` sigue reservado a Q en SO(n), donde la traspuesta es la inversa exacta. Para PQ se debe usar el evaluador del optimizador, que forma la inversa como Q'P⁻¹ mediante un sistema lineal y usa bancos forward/inverse fijos. Pattern Search es una implementación propia de MATLAB base; no depender de Global Optimization Toolbox.
 
 ## Organización del repositorio
 
@@ -30,9 +30,13 @@ El candidato numérico no se considera necesariamente x* global. El número de c
 | `scripts/check/check_norm4.m` y afines | Comprobaciones pequeñas del estimador de la norma, sin framework. |
 | `scripts/condition_number/` | Ejemplos del número de condición en SO(9): medición y histogramas. |
 | `scripts/check_condition_number/check_cond4.m` | Comprobaciones pequeñas del estimador del número de condición, sin framework. |
+| `src/optimizer/` | Bancos fijos, evaluación de κ₄(PQ) y Pattern Search por rotaciones de Givens. |
+| `scripts/optimizer/example_cond4_9x9_pattern_search.m` | Ejemplo SO(9) de selección y refinamiento de 100 rotaciones. |
+| `scripts/check_optimizer/check_pattern_search_cond4.m` | Comprobaciones del estimador determinista y del optimizador. |
+| `docs/pattern_search_cond4.md` | Problema κ₄(PQ), semillas, bancos y algoritmo de refinamiento. |
 | `docs/induced_norm4_algorithm.qmd` | Método, tolerancias y limitaciones. |
 
-Las funciones sustantivas deben residir en `src/`; los scripts deben coordinar llamadas y visualizaciones. Mantener la documentación en español y los identificadores de código en inglés. Usar MATLAB base, sin dependencias de toolboxes adicionales ni lenguajes externos. Para estimar la norma inducida usar `compute_4_norm(Q,options)` y para el número de condición `compute_4_cond(Q,options)`; la única salida es un vector columna de estimaciones para una entrada `n×n×M`, o un escalar para una matriz `n×n`. No devolver candidatos, diagnósticos ni historiales. La matriz Q permanece fija durante el multinicio; las normas se evalúan internamente con `norm4_columns`, sin handles.
+Las funciones sustantivas deben residir en `src/`; los scripts deben coordinar llamadas y visualizaciones. Mantener la documentación en español y los identificadores de código en inglés. Usar MATLAB base, sin dependencias de toolboxes adicionales ni lenguajes externos. Para estimar la norma inducida de Q usar `compute_4_norm(Q,options)` y para su número de condición usar `compute_4_cond(Q,options)`; estas interfaces devuelven solo estimaciones. El optimizador de PQ tiene interfaces separadas en `src/optimizer/` y puede devolver un `struct` de candidatos y diagnósticos. La matriz evaluada permanece fija durante cada multinicio; las normas se evalúan con `norm4_columns`.
 
 ## Convenciones matemáticas
 

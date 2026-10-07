@@ -2,7 +2,7 @@
 
 Este proyecto se creó para explorar los componentes del número de condición bajo la norma 4.
 
-El interés matricial corresponde a la norma inducida 4. Como motivación, para una matriz invertible se tiene $\(\kappa_4(A)=\lVert A\rVert_4\lVert A^{-1}\rVert_4\)$. El proyecto estima $\(\lVert Q\rVert_4\)$ y el número de condición $\(\kappa_4(Q)=\lVert Q\rVert_4\lVert Q^{T}\rVert_4\)$ para $\(Q\in SO(n)\)$, sin certificar el máximo global ni minimizar todavía el número de condición o buscar una Q óptima.
+El interés matricial corresponde a la norma inducida 4. Para una matriz invertible se tiene $\(\kappa_4(A)=\lVert A\rVert_4\lVert A^{-1}\rVert_4\)$. El proyecto estima $\(\lVert Q\rVert_4\)$ y $\(\kappa_4(Q)\)$ para $\(Q\in SO(n)\)$, y refina rotaciones canonicalizadas mediante Pattern Search para reducir $\(\kappa_4(PQ)\)$ con un factor de Cholesky fijo $P$. Las estimaciones multinicio y la búsqueda local no certifican máximos de norma ni un mínimo global.
 
 ## Alcance actual
 
@@ -12,6 +12,9 @@ El interés matricial corresponde a la norma inducida 4. Como motivación, para 
 - `src/4-norm/compute_4_cond.m`: estima el número de condición κ₄(Q) = ‖Q‖₄‖Qᵀ‖₄ para Q en SO(n), usando la traspuesta como inversa exacta; acepta una matriz o un lote y devuelve únicamente un vector columna de estimaciones.
 - `src/helpers/haar_so.m`: genera una matriz Haar en \(SO(n)\).
 - `src/helpers/angular_amplitude.m` y `src/helpers/spherical_amplitude.m`: evalúan amplitudes para las referencias independientes bidimensional y tridimensional.
+- `src/optimizer/create_norm4_start_banks.m`: crea bancos gaussianos forward/inverse reproducibles mediante un flujo local, sin modificar el RNG global.
+- `src/optimizer/compute_cond4_pq_fixed_starts.m`: estima κ₄(PQ) para una matriz o lote de rotaciones usando los mismos bancos en cada comparación y la inversa $Q'P^{-1}$.
+- `src/optimizer/pattern_search_cond4.m`: ejecuta Pattern Search oportunista sobre direcciones de Givens en SO(n), canonicaliza las salidas y conserva diagnósticos por punto inicial.
 - `scripts/example_2x2.m`: dibuja el contorno de \(S_4\) en dimensión 2 y su imagen mediante una única rotación aleatoria.
 - `scripts/example_norm4_2x2.m`: compara la estimación por potencia con una referencia angular refinada para la misma Q.
 - `scripts/example_norm4_3x3.m`: compara la estimación por potencia con una referencia esférica refinada para la misma Q en dimensión 3 y visualiza la referencia independiente sobre \(S_4\).
@@ -21,6 +24,8 @@ El interés matricial corresponde a la norma inducida 4. Como motivación, para 
 - `scripts/condition_number/example_cond4_9x9.m`: estima κ₄(Q) para las mismas 1000 matrices de \(SO(9)\) con distintos números de inicios aleatorios, y grafica nueve histogramas comparables; aplica la misma criba a partir de 50 inicios.
 - `scripts/check/check_norm4.m`, `scripts/check/check_norm4_packing.m` y `scripts/check/check_norm4_screening.m`: comprobaciones reproducibles del estimador de la norma, sin framework.
 - `scripts/check_condition_number/check_cond4.m`: comprobaciones reproducibles del estimador del número de condición, sin framework.
+- `scripts/optimizer/example_cond4_9x9_pattern_search.m`: genera una P sintética, selecciona 100 de 1000 rotaciones Haar y refina las 100 para reducir κ₄(PQ) con bancos independientes de selección y optimización.
+- `scripts/check_optimizer/check_pattern_search_cond4.m`: comprueba bancos reproducibles, valores conocidos, equivalencia entre lote y llamadas escalares, descenso, canonicalización y pertenencia a SO(2).
 
 Los ejemplos geométricos normalizan sus direcciones angulares directamente con `norm4_columns(X)`; los experimentos de inicios fijos usan `randn` y la misma normalización. No se necesitan generadores de vectores ni iteradores escalares separados.
 
@@ -49,9 +54,11 @@ run(fullfile('scripts','condition_number','example_cond4_100_starts.m'))
 run(fullfile('scripts','condition_number','example_cond4_9x9.m'))
 run(fullfile('scripts','check','check_norm4.m'))
 run(fullfile('scripts','check_condition_number','check_cond4.m'))
+run(fullfile('scripts','check_optimizer','check_pattern_search_cond4.m'))
+run(fullfile('scripts','optimizer','example_cond4_9x9_pattern_search.m'))
 ```
 
-Las dependencias previstas son únicamente MATLAB base. La interfaz ya no devuelve candidatos, diagnósticos ni historiales. Al alcanzar el límite de iteraciones conserva la mejor amplitud factible evaluada, sin reportar un estado de convergencia.
+Las dependencias previstas son únicamente MATLAB base. Pattern Search está implementado en el repositorio y no requiere Global Optimization Toolbox. Las interfaces de estimación de norma conservan únicamente sus valores; el optimizador devuelve por separado un `struct` con candidatos y diagnósticos de la búsqueda. Al alcanzar un límite conserva el mejor candidato evaluado, pero no lo presenta como mínimo global.
 
 Verificado con MATLAB R2024b Update 9: comprobaciones numéricas de la norma y del número de condición, ejemplos 2D y 3D, comparación desde inicios fijos, convergencia multinicio y generación de figuras documentales. Se ejecutaron también el ejemplo SO(9) completo con 1000 matrices y nueve cantidades de inicios, los dos ejemplos de número de condición en `scripts/condition_number/` (1000 matrices de SO(9)) y los generadores de figuras documentales. Las ejecuciones por lotes imprimen los resultados esperados pero el proceso termina con un fallo de salida conocido (`free(): chunks in smallbin corrupted`); no se certifica una salida limpia del proceso. Se comprobó la estructura de las figuras; no se realizó una inspección visual.
 
