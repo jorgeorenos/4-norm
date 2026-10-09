@@ -15,7 +15,7 @@ lang: es
 
 ## Objetivo del documento
 
-Este documento presenta una formulación general para minimizar una estimación del número de condición inducido por la norma 4 dentro de una familia de matrices de la forma $PQ$, donde $Q$ es una rotación. Se describen la estimación multinicio de las normas inducidas, el uso de bancos fijos de direcciones, los sondeos mediante rotaciones de Givens y un calendario de descarte progresivo de trayectorias.
+Este documento presenta una formulación general para minimizar una estimación del número de condición inducido por la norma 4 dentro de una familia de matrices de la forma $PQ$, donde $Q$ es una rotación. Se describen la estimación multinicio de las normas inducidas, el uso de bancos fijos de direcciones, los sondeos mediante rotaciones de Givens y un proceso de descarte progresivo de trayectorias.
 
 El método es una búsqueda local sobre una función objetivo estimada. Por tanto, produce el mejor candidato encontrado dentro de las condiciones dadas.
 
@@ -314,6 +314,42 @@ Las supervivientes continúan desde su estado acumulado, sin volver a la rotaci�
 - Por defecto, el paso angular inicial es $\Delta_0=0.05$ radianes y el máximo es $\Delta_{\max}=0.25$ radianes. Después de una mejora el paso se duplica, sin superar el máximo; si no hay mejora se reduce a la mitad. Una trayectoria se detiene si el paso baja de $0.001$ o llega a 50 rondas. Los ejemplos pueden cambiar estos valores.
 - El **descarte progresivo es opcional**. En el ejemplo de dimensión 9 se comienza con 100 trayectorias, se conservan 25 tras la ronda 10 y 5 tras la ronda 30, con un límite de 50 rondas. En cada frontera se eligen las activas de menor valor corriente y, si hay empate, las de menor índice de origen. Las supervivientes mantienen su rotación, paso, contadores y orden de sondeo; no se reinician. Este ahorro de cómputo puede descartar una trayectoria que habría mejorado después.
 - Al terminar, se elige la trayectoria de menor valor estimado y se devuelve su rotación tal como quedó después del último giro aceptado, sin canonicalización ni reevaluación final. El resultado es un candidato local para una función estimada, no un mínimo global certificado.
+
+## Ejemplos gráficos de reducción del número de condición
+
+En cada ejemplo se muestrean 10 000 rotaciones Haar y se estima $\widehat{\kappa}_4(PQ)$ para cada una. Las 100 rotaciones con las estimaciones más bajas se usan como 100 puntos iniciales distintos de Pattern Search; por tanto, se refinan 100 trayectorias. La figura muestra la trayectoria ganadora: aquella cuyo valor final estimado es el menor entre las 100. La línea horizontal punteada es la estimación de $\kappa_4(P)$, es decir, el valor de referencia para $Q=I$. De esta manera tenemos un comparacion con la descomposicion de Cholesky tradicional.
+
+### Caso de matrices $2\times2$
+
+Se muestrearon y canonicalizaron 10 000 rotaciones Haar en $SO(2)$, y se evaluó $\widehat{\kappa}_4(PQ)$ para seleccionar las 100 de menor valor. Pattern Search se inició desde esas 100 rotaciones, una trayectoria por cada punto inicial.
+
+La curva muestra el historial de la trayectoria que terminó con la menor estimación entre las 100: bajó de $1.955898$ a $1.955756$ en 13 rondas.
+
+![Trayectoria ganadora entre los 100 inicios de SO(2): estimación de $\kappa_4(PQ)$ por ronda; línea punteada: valor de referencia $\widehat{\kappa}_4(P)$ cuando $Q=I_2$.](pattern_search_cond4_2x2.png){#fig-cond4-path-2x2 width=85%}
+
+### Caso de matrices $3\times3$
+
+También se muestrearon y canonicalizaron 10 000 rotaciones Haar en $SO(3)$; se evaluaron con los bancos fijos y se seleccionaron las 100 con menor estimación para iniciar 100 trayectorias de Pattern Search.
+
+La curva presenta la trayectoria con menor valor final estimado entre las 100: pasó de $6.116694$ a $6.093369$ en 20 rondas.
+
+![Trayectoria ganadora entre los 100 inicios de SO(3): estimación de $\kappa_4(PQ)$ por ronda; línea punteada: valor de referencia $\widehat{\kappa}_4(P)$ cuando $Q=I_3$.](pattern_search_cond4_3x3.png){#fig-cond4-path-3x3 width=85%}
+
+### Caso de matrices $5\times5$
+
+Se muestrearon 10 000 rotaciones Haar en $SO(5)$. Cada rotación se llevó a su representante canónico y se evaluó con los bancos fijos; las 100 estimaciones más bajas determinaron los puntos iniciales de 100 trayectorias de Pattern Search.
+
+En comparación con los casos anteriores, esta trayectoria muestra un descenso más pronunciado en el valor estimado de $\kappa_4(PQ)$ al utilizar Pattern Search.
+
+![Trayectoria ganadora entre los 100 inicios de SO(5): estimación de $\kappa_4(PQ)$ por ronda exterior y referencia punteada para $Q=I_5$.](pattern_search_cond4_5x5.png){#fig-cond4-path-5x5 width=85%}
+
+### Caso de matrices $9\times9$
+
+Para $SO(9)$ se siguió el mismo procedimiento: se muestrearon y canonicalizaron 10 000 rotaciones Haar, se estimaron sus números de condición con los bancos fijos y se inició Pattern Search desde las 100 estimaciones menores.
+
+Al igual que en el caso de $SO(5)$, el descenso sigue siendo mas pronunciado en comparación con los casos de dimensiones menores. De los 4 casos abordados este es el que presenta el mayor descenso en el valor estimado de $\kappa_4(PQ)$.
+
+![Trayectoria ganadora entre los 100 inicios de SO(9): estimación de $\kappa_4(PQ)$ por ronda exterior y referencia punteada para $Q=I_9$.](pattern_search_cond4_9x9.png){#fig-cond4-path-9x9 width=85%}
 
 ## Referencias
 
