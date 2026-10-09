@@ -37,7 +37,7 @@ assert(max(abs(batchValues - scalarValues)) < 1e-14);
 
 searchOptions = struct('InitialMeshSize', pi/8, 'MeshTolerance', 1e-4, ...
     'MaxMeshSize', pi/4, 'MeshExpansionFactor', 2, ...
-    'MeshContractionFactor', 0.5, 'FunctionTolerance', 1e-10, ...
+    'MeshContractionFactor', 0.5, ...
     'MaxIterations', 40, 'MaxFunctionEvaluations', 200, 'Display', 'off', ...
     'TrackHistory', true);
 result = pattern_search_cond4(eye(2), Q45, banks, @norm4_columns, ...
@@ -54,6 +54,66 @@ assert(result.history.outerIterations == result.iterations(1));
 assert(size(result.history.rotations, 4) == result.iterations(1) + 1);
 assert(result.history.values(1,1) == result.initialValues(1));
 assert(result.history.values(1,end) == result.rawFinalValues(1));
+assert(isequal(result.finalRotations, result.rawFinalRotations));
+assert(isequal(result.finalValues, result.rawFinalValues));
+assert(isequal(result.bestRotation, ...
+    result.rawFinalRotations(:,:,result.bestStartIndex)));
+assert(result.bestValue == result.rawFinalValues(result.bestStartIndex));
+assert(~isfield(result.options, 'FunctionTolerance'));
+acceptedSteps = find(result.history.accepted(1,2:end)) + 1;
+assert(all(result.history.values(1,acceptedSteps) < ...
+    result.history.values(1,acceptedSteps - 1)));
+rejectedOptions = searchOptions;
+rejectedOptions.FunctionTolerance = 0;
+caughtRemovedOption = false;
+try
+    pattern_search_cond4(eye(2), Q45, banks, @norm4_columns, ...
+        normOptions, rejectedOptions);
+catch exception
+    caughtRemovedOption = strcmp(exception.identifier, ...
+        'optimizer:pattern_search_cond4:UnknownOption');
+end
+assert(caughtRemovedOption);
+
+% Omitting mesh sizes uses the optimizer defaults, not script-specific sizes.
+defaultMeshOptions = rmfield(searchOptions, {'InitialMeshSize', 'MaxMeshSize'});
+defaultMeshOptions.MaxIterations = 1;
+defaultMeshResult = pattern_search_cond4(eye(2), Q45, banks, ...
+    @norm4_columns, normOptions, defaultMeshOptions);
+assert(defaultMeshResult.options.InitialMeshSize == 0.05);
+assert(defaultMeshResult.options.MaxMeshSize == 0.25);
+
+% A Givens step may leave the canonical domain; return that accepted step.
+oneStepOptions = struct('InitialMeshSize', pi/3, 'MaxMeshSize', pi/3, ...
+    'MaxIterations', 1, 'Display', 'off', 'TrackHistory', true);
+oneStepResult = pattern_search_cond4(eye(2), Q45, banks, ...
+    @norm4_columns, normOptions, oneStepOptions);
+canonicalFinal = canonicalize_rotations_by_trace_batch( ...
+    oneStepResult.rawFinalRotations);
+assert(oneStepResult.history.accepted(1,2));
+assert(norm(oneStepResult.rawFinalRotations - canonicalFinal, 'fro') > 1e-3);
+assert(isequal(oneStepResult.bestRotation, oneStepResult.rawFinalRotations));
+assert(oneStepResult.bestValue == oneStepResult.rawFinalValues);
+
+% A small but genuine improvement is accepted without a descent threshold.
+smallAngle = 1e-9;
+Qsmall = [cos(pi/8), -sin(pi/8); sin(pi/8), cos(pi/8)];
+Qlower = [cos(pi/8 - smallAngle), -sin(pi/8 - smallAngle); ...
+    sin(pi/8 - smallAngle), cos(pi/8 - smallAngle)];
+smallInitial = compute_cond4_pq_fixed_starts(eye(2), Qsmall, banks, ...
+    @norm4_columns, normOptions);
+smallTrial = compute_cond4_pq_fixed_starts(eye(2), Qlower, banks, ...
+    @norm4_columns, normOptions);
+assert(smallTrial < smallInitial && smallInitial - smallTrial < 1e-8);
+smallOptions = searchOptions;
+smallOptions.InitialMeshSize = smallAngle;
+smallOptions.MaxMeshSize = smallAngle;
+smallOptions.MeshTolerance = 1e-12;
+smallOptions.MaxIterations = 1;
+smallResult = pattern_search_cond4(eye(2), Qsmall, banks, ...
+    @norm4_columns, normOptions, smallOptions);
+assert(smallResult.history.accepted(1,2));
+assert(smallResult.rawFinalValues(1) < smallResult.initialValues(1));
 
 % A progressive schedule must preserve the state of the surviving trajectory
 % while pruning the other starts after the first stage.
@@ -61,11 +121,22 @@ Qprogressive = cat(3, Q45, eye(2), [cos(pi/8), -sin(pi/8); sin(pi/8), cos(pi/8)]
 progressiveOptions = struct('InitialMeshSize', pi/16, ...
     'MeshTolerance', 1e-8, 'MaxMeshSize', pi/4, ...
     'MeshExpansionFactor', 2, 'MeshContractionFactor', 0.5, ...
-    'FunctionTolerance', 1e-10, 'MaxIterations', 3, ...
+    'MaxIterations', 3, ...
     'MaxFunctionEvaluations', 200, 'Display', 'off', ...
     'StageIterationLimits', [1, 3], 'StageRetainedCounts', [3, 1]);
 progressiveResult = pattern_search_cond4(P, Qprogressive, banks, ...
     @norm4_columns, normOptions, progressiveOptions);
+assert(isequal(progressiveResult.finalRotations, ...
+    progressiveResult.rawFinalRotations));
+assert(isequal(progressiveResult.finalValues, progressiveResult.rawFinalValues));
+[expectedBest, expectedIndex] = min(progressiveResult.rawFinalValues);
+assert(progressiveResult.bestStartIndex == expectedIndex);
+assert(progressiveResult.bestValue == expectedBest);
+assert(isequal(progressiveResult.bestRotation, ...
+    progressiveResult.rawFinalRotations(:,:,expectedIndex)));
+directBest = compute_cond4_pq_fixed_starts(P, ...
+    progressiveResult.bestRotation, banks, @norm4_columns, normOptions);
+assert(abs(directBest - progressiveResult.bestValue) < 1e-12);
 assert(sum(strcmp(progressiveResult.terminationReasons, 'StagePruned')) == 2);
 assert(sum(progressiveResult.iterations == 3) == 1);
 assert(all(progressiveResult.iterations( ...

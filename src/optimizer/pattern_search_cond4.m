@@ -4,17 +4,19 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
 %   NORMOPTIONS,SEARCHOPTIONS) runs a deterministic opportunistic pattern
 %   search from every page of INITIALROTATIONS. Poll directions are right
 %   Givens rotations in all coordinate planes with positive and negative mesh
-%   angles, so every evaluated candidate remains in SO(n).
+%   angles, so every evaluated candidate remains in SO(n). A poll is accepted
+%   only when its estimate is strictly below the current trajectory estimate.
 %
 %   The same BANKS.forward and BANKS.inverse starts are used for every
-%   candidate. Initial and returned rotations are canonicalized toward the
-%   identity. SEARCHOPTIONS.StageIterationLimits and StageRetainedCounts can
+%   candidate. Initial rotations are canonicalized toward the identity;
+%   accepted iterates and returned rotations are not recanonicalized.
+%   SEARCHOPTIONS.StageIterationLimits and StageRetainedCounts can
 %   define a progressive schedule. The first stage uses every initial point;
 %   later stages retain the lowest current estimates without resetting their
 %   rotations, meshes, counters, or direction order. Pruned trajectories have
 %   termination reason 'StagePruned'. No global minimum is certified. The
-% function consumes no RNG. RESULT.functionCounts includes each initial and
-% poll evaluation, but not the final canonical reevaluation. Set
+%   function consumes no RNG. RESULT.functionCounts includes each initial and
+%   poll evaluation; there is no final reevaluation. Set
 % SEARCHOPTIONS.TrackHistory to true to retain the accepted iterate, mesh,
 % and activity state after every outer iteration for visualization.
     if nargin < 5
@@ -95,9 +97,7 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
             candidateValues = compute_cond4_pq_fixed_starts( ...
                 P, candidates, banks, normHandle, normOptions);
             functionCounts(pageIndices) = functionCounts(pageIndices) + 1;
-            decrease = options.FunctionTolerance .* ...
-                max(1, abs(currentValues(pageIndices)));
-            improved = candidateValues < currentValues(pageIndices) - decrease;
+            improved = candidateValues < currentValues(pageIndices);
             improvedIndices = pageIndices(improved);
             if ~isempty(improvedIndices)
                 currentRotations(:,:,improvedIndices) = candidates(:,:,improved);
@@ -157,31 +157,17 @@ function result = pattern_search_cond4(P, initialRotations, banks, normHandle, n
 
     rawFinalRotations = currentRotations;
     rawFinalValues = currentValues;
-    finalRotations = canonicalize_rotations_by_trace_batch(rawFinalRotations);
-    finalValues = compute_cond4_pq_fixed_starts( ...
-        P, finalRotations, banks, normHandle, normOptions);
-
-    % Finite-start estimates are not exactly invariant under signed
-    % permutations. Never return a canonical estimate worse than its
-    % canonical initial point under the optimization banks.
-    useInitial = finalValues > initialValues;
-    for index = find(useInitial).'
-        finalRotations(:,:,index) = canonicalize_rotations_by_trace_batch( ...
-            initialRotations(:,:,index));
-    end
-    finalValues(useInitial) = initialValues(useInitial);
-
-    [bestValue, bestStartIndex] = min(finalValues);
+    [bestValue, bestStartIndex] = min(rawFinalValues);
     result = struct();
-    result.bestRotation = finalRotations(:,:,bestStartIndex);
+    result.bestRotation = rawFinalRotations(:,:,bestStartIndex);
     result.bestValue = bestValue;
     result.bestStartIndex = bestStartIndex;
     result.initialRotations = canonicalize_rotations_by_trace_batch(initialRotations);
     result.initialValues = initialValues;
     result.rawFinalRotations = rawFinalRotations;
     result.rawFinalValues = rawFinalValues;
-    result.finalRotations = finalRotations;
-    result.finalValues = finalValues;
+    result.finalRotations = rawFinalRotations;
+    result.finalValues = rawFinalValues;
     result.iterations = iterations;
     result.functionCounts = functionCounts;
     result.finalMeshSizes = meshSizes;
@@ -208,7 +194,7 @@ end
 function options = complete_search_options(options)
     defaults = struct('InitialMeshSize', 0.05, 'MeshTolerance', 1e-3, ...
         'MaxMeshSize', 0.25, 'MeshExpansionFactor', 2, ...
-        'MeshContractionFactor', 0.5, 'FunctionTolerance', 1e-8, ...
+        'MeshContractionFactor', 0.5, ...
         'MaxIterations', 50, 'MaxFunctionEvaluations', 2000, ...
         'Display', 'final', 'TrackHistory', false, 'StageIterationLimits', [], ...
         'StageRetainedCounts', []);
@@ -245,10 +231,6 @@ function options = complete_search_options(options)
             options.MeshContractionFactor <= 0 || options.MeshContractionFactor >= 1
         error('optimizer:pattern_search_cond4:InvalidMesh', ...
             'Invalid mesh size, expansion factor, or contraction factor.');
-    end
-    if ~valid_scalar(options.FunctionTolerance) || options.FunctionTolerance < 0
-        error('optimizer:pattern_search_cond4:InvalidTolerance', ...
-            'FunctionTolerance must be a finite nonnegative double scalar.');
     end
     if ~valid_integer(options.MaxIterations, 1) || ...
             ~valid_integer(options.MaxFunctionEvaluations, 1)
