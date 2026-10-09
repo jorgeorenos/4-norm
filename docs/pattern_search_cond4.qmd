@@ -249,7 +249,9 @@ En estas expresiones, $\gamma_{\mathrm{exp}}$ determina cuánto crece el paso y 
 La búsqueda de una trayectoria se detiene cuando ocurre alguno de estos eventos:
 
 - el paso se vuelve menor que la tolerancia fijada para la malla: ya se están probando giros muy pequeños;
-- se agota el número permitido de evaluaciones de $\widehat{F}$: ya no se pueden probar más candidatos;
+- se alcanza el número máximo de rondas fijado para la búsqueda.
+
+El número de evaluaciones de $\widehat{F}$ se registra para medir el trabajo realizado, pero no detiene la trayectoria.
 
 Estas razones describen por qué terminó el cálculo; ninguna, por sí sola, certifica un mínimo global.
 
@@ -294,7 +296,7 @@ $$
 \left(f_m^{(t)},m\right),
 $$
 
-primero por su evaluación $f_m^{(t)}$ (menor es mejor) y después por el índice de su rotación inicial $m$, que resuelve los empates de forma reproducible. Si la etapa siguiente admite $R$ trayectorias, continúan las primeras $R$ activas, o todas si quedan menos. Una trayectoria que ya terminó por paso pequeño, límite de evaluaciones o límite de rondas no compite por una plaza.
+primero por su evaluación $f_m^{(t)}$ (menor es mejor) y después por el índice de su rotación inicial $m$, que resuelve los empates de forma reproducible. Si la etapa siguiente admite $R$ trayectorias, continúan las primeras $R$ activas, o todas si quedan menos. Una trayectoria que ya terminó por paso pequeño o por límite de rondas no compite por una plaza.
 
 Una trayectoria superviviente debe conservar su estado completo:
 
@@ -309,7 +311,7 @@ Las supervivientes continúan desde su estado acumulado, sin volver a la rotaci�
 - Se parte de varias rotaciones iniciales, que se canonicalizan antes de comenzar. La matriz $P$ y los bancos de direcciones para estimar las dos normas permanecen fijos durante la búsqueda, de modo que los candidatos se comparan bajo las mismas condiciones.
 - Cada trayectoria prueba rotaciones de Givens en ambos sentidos para cada par de coordenadas.
 - La búsqueda es **oportunista**: en cada ronda se acepta el primer giro cuyo valor estimado sea estrictamente menor que el valor corriente de esa trayectoria. Se dejan de probar sus otros giros en esa ronda para reducir las evaluaciones y el tiempo de cómputo.
-- Por defecto, el paso angular inicial es $\Delta_0=0.05$ radianes y el máximo es $\Delta_{\max}=0.25$ radianes. Después de una mejora el paso se duplica, sin superar el máximo; si no hay mejora se reduce a la mitad. La búsqueda se detiene si el paso baja de $0.001$, se llega a 50 rondas o se agotan 2000 evaluaciones por trayectoria. Los ejemplos pueden cambiar estos presupuestos.
+- Por defecto, el paso angular inicial es $\Delta_0=0.05$ radianes y el máximo es $\Delta_{\max}=0.25$ radianes. Después de una mejora el paso se duplica, sin superar el máximo; si no hay mejora se reduce a la mitad. Una trayectoria se detiene si el paso baja de $0.001$ o llega a 50 rondas. Los ejemplos pueden cambiar estos valores.
 - El **descarte progresivo es opcional**. En el ejemplo de dimensión 9 se comienza con 100 trayectorias, se conservan 25 tras la ronda 10 y 5 tras la ronda 30, con un límite de 50 rondas. En cada frontera se eligen las activas de menor valor corriente y, si hay empate, las de menor índice de origen. Las supervivientes mantienen su rotación, paso, contadores y orden de sondeo; no se reinician. Este ahorro de cómputo puede descartar una trayectoria que habría mejorado después.
 - Al terminar, se elige la trayectoria de menor valor estimado y se devuelve su rotación tal como quedó después del último giro aceptado, sin canonicalización ni reevaluación final. El resultado es un candidato local para una función estimada, no un mínimo global certificado.
 

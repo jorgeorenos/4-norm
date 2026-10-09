@@ -1,5 +1,10 @@
 # Registro de trabajo
 
+## 2026-10-09
+
+- Se retiró `MaxFunctionEvaluations` como opción y criterio de parada del Pattern Search. Se mantienen la tolerancia de malla y el máximo de rondas por trayectoria; `functionCounts` sigue registrando el coste, sin limitar la búsqueda. Se actualizaron los cuatro scripts de `scripts/optimizer` y la explicación de `docs/pattern_search_cond4.qmd`.
+- MATLAB R2024b ejecutó `check_pattern_search_cond4.m`, los ejemplos de trayectoria SO(2), SO(3) y SO(9) y el benchmark SO(9) con salida correcta. La comprobación verifica que la opción retirada se rechaza, que ambos criterios restantes pueden detener la búsqueda y que el número de evaluaciones continúa registrado. Quarto generó el HTML del documento y `git diff --check` terminó sin errores. En el benchmark con estas semillas, la referencia de 100 trayectorias obtuvo 6.740231695285 y el esquema progresivo 6.758314734429: la igualdad de mejores valores no está garantizada.
+
 ## 2026-10-07
 
 - Se extendió `pattern_search_cond4` con las opciones `StageIterationLimits` y `StageRetainedCounts`. El esquema progresivo conserva el estado completo de las trayectorias sobrevivientes y marca las descartadas con `StagePruned`; la comprobación en SO(2) verifica la reducción de evaluaciones, la continuidad del presupuesto y el rechazo de un calendario incompatible con el número de rotaciones iniciales.
