@@ -45,7 +45,7 @@ optimizationNormOptions = struct('MaxIterations', 500, ...
 baseSearchOptions = struct('MeshTolerance', 0.001, ...
     'MeshExpansionFactor', 2, 'MeshContractionFactor', 0.5, ...
     'MaxIterations', 50, ...
-    'MaxFunctionEvaluations', 3000, 'Display', 'off');
+    'Display', 'off');
 
 configurationNames = {'Baseline 100', 'Configured 50', 'Progressive 100-25-5'};
 configurationStartCounts = [100, 50, 100];
@@ -56,7 +56,6 @@ configurationCount = numel(configurationNames);
 % Warm up the execution path without including it in a measured configuration.
 warmupOptions = baseSearchOptions;
 warmupOptions.MaxIterations = 1;
-warmupOptions.MaxFunctionEvaluations = 100;
 pattern_search_cond4(P, initialRotations(:,:,1), optimizationBanks, ...
     normHandle, optimizationNormOptions, warmupOptions);
 
