@@ -39,7 +39,7 @@ con
 
 $$
 Q\in SO(K)
-=\left\{Q\in\mathbb{R}^{K\times K}:Q'Q=I_K,\ \det(Q)=1\right\}.
+=\left\{Q\in\mathcal{O}(K):\det(Q)=1\right\}
 $$
 
 La rotación no altera la covarianza reconstruida:
@@ -66,7 +66,7 @@ $$
 La norma matricial inducida correspondiente es^[Condicionar la norma inducida 4 al conjunto de vectores de norma 4 unitaria $\|x\|_4=1$ permite acotar el espacio de búsqueda.]
 
 $$
-\|A\|_{4\to4}
+\|A\|_4
 =\max_{x\ne0}\frac{\|Ax\|_4}{\|x\|_4}
 =\max_{\|x\|_4=1}\|Ax\|_4.
 $$
@@ -75,17 +75,17 @@ En consecuencia el numero de condición inducido por la norma 4 se define como
 
 $$
 \kappa_4(A)
-=\|A\|_{4\to4}\,\|A^{-1}\|_{4\to4}.
+=\|A\|_4\,\|A^{-1}\|_4.
 $$
 
 El problema se define como:
 
 $$
 \boxed{
-\min_{Q\in SO(K)} F(Q),
+Q^{*}=\text{argmin}_{Q\in SO(K)} F(Q),
 \qquad
 F(Q)=\kappa_4(PQ)
-=\|PQ\|_{4\to4}\,\|(PQ)^{-1}\|_{4\to4}
+=\|PQ\|_4\,\|(PQ)^{-1}\|_4
 }.
 $$
 
@@ -93,7 +93,7 @@ $$
 
 ### Estimación multinicio de la norma inducida
 
-Calcular $\|A\|_{4\to4}$ exige maximizar sobre la esfera de norma 4 unitaria. El método de iteración de potencia generalizada se aplica desde varias direcciones iniciales y conserva la mayor amplitud factible observada. Si $X$ es un banco finito de direcciones, el resultado es una estimación de la norma inducida 4.
+Calcular $\|A\|_4$ exige maximizar sobre la esfera de norma 4 unitaria. El método de iteración de potencia generalizada se aplica desde varias direcciones iniciales y conserva la mayor amplitud factible observada. Si $X$ es un banco finito de direcciones, el resultado es una estimación de la norma inducida 4.
 
 $$
 \widehat{\nu}_4(A;X)
@@ -149,7 +149,7 @@ $$
 Esto equivale a minimizar la distancia de Frobenius a la identidad, pues
 
 $$
-\|QS-I_K\|_F^2
+\|QS-I\|_F^2
 =2K-2\operatorname{tr}(QS).
 $$
 
@@ -175,7 +175,7 @@ $$
 Como
 
 $$
-G_{ij}(\theta)'G_{ij}(\theta)=I_K,
+G_{ij}(\theta)'G_{ij}(\theta)=I,
 \qquad
 \det G_{ij}(\theta)=1,
 $$
@@ -251,8 +251,6 @@ La búsqueda de una trayectoria se detiene cuando ocurre alguno de estos eventos
 - el paso se vuelve menor que la tolerancia fijada para la malla: ya se están probando giros muy pequeños;
 - se alcanza el número máximo de rondas fijado para la búsqueda.
 
-El número de evaluaciones de $\widehat{F}$ se registra para medir el trabajo realizado, pero no detiene la trayectoria.
-
 Estas razones describen por qué terminó el cálculo; ninguna, por sí sola, certifica un mínimo global.
 
 ### Esquema del procedimiento
@@ -262,31 +260,19 @@ El procedimiento puede leerse como varias búsquedas que parten de rotaciones di
 1. Se eligen varias rotaciones iniciales y se estima el valor de cada una con los mismos bancos fijos de direcciones.
 2. A cada trayectoria se le asigna el paso angular inicial $\Delta_0$.
 3. En cada iteración se prueban pequeños giros de las trayectorias.
-4. Para cada trayectoria se acepta el primer giro que logra el descenso.
+4. Para cada trayectoria se prueban todas las rotaciones de Givens posibles, o se puede actuar de forma oportunista y aceptar el primer giro que logre el descenso.
 5. Se aumenta el paso si hubo una mejora o se reduce si no la hubo.
-6. Al final se comparan los valores corrientes de las trayectorias y se devuelve la rotación con el menor valor estimado, sin volver a canonicalizarla ni evaluarla.
+6. Al final se comparan los valores de las trayectorias y se devuelve la rotación con el menor valor estimado.
 
 ## Descarte progresivo de trayectorias
 
 ### Motivación
 
-Una **trayectoria** es la búsqueda que comienza en una rotación inicial y continúa a lo largo de varias rondas. En cada ronda conserva su rotación actual, su valor estimado y su tamaño de paso. Prueba giros de Givens alrededor de esa rotación: si encuentra uno que mejora el valor, avanza a la nueva rotación; si no, permanece donde está y reduce el paso.
+Dado que es un algoritmo de búsqueda, se plantea utilizar como puntos de partida varias trayectorias^[Cada matriz Q inicial es una trayectoria]. Una trayectoria es la búsqueda que comienza en una rotación inicial y continúa a lo largo de varias rondas. En cada ronda conserva su rotación actual, su valor estimado y su tamaño de paso.
 
-El número de trayectorias depende de cuántas rotaciones iniciales se elijan. Por ejemplo, con 100 rotaciones iniciales hay 100 trayectorias. En dimensión 9 existen 36 planos de Givens y hasta 72 sondeos posibles **por trayectoria y por ronda**; la búsqueda oportunista puede detener los sondeos de una trayectoria antes de probarlos todos si encuentra una mejora.
+El número de trayectorias depende de cuántas rotaciones iniciales se elijan. Por ejemplo, con 100 rotaciones iniciales hay 100 trayectorias. En dimensión 9, por ejemplo, existen 36 planos de Givens y hasta 72 sondeos posibles **por trayectoria y por ronda**; la búsqueda oportunista puede detener los sondeos de una trayectoria antes de probarlos todos si encuentra una mejora. Es importante destacar que esta decisión plantea un trade-off entre eficiencia de computo y exhaustividad de la búsqueda.
 
-Una búsqueda completa deja avanzar cada trayectoria hasta que alcance un criterio de parada. Cuando hay muchas, esto puede ser costoso. El descarte progresivo empieza con todas y, solo permite que unas cuantas pasen a una siguiente ronda de sondeo, dejando activas cada vez menos trayectorias para ahorrar evaluaciones.
-
-Los límites acumulados de iteración indican cuándo se revisa qué trayectorias continúan:
-
-$$
-T_1<T_2<\cdots<T_L
-$$
-
-y las cantidades retenidas indican cuántas participan en cada etapa hasta llegar a una única trayectoria ganadora:
-
-$$
-R_1>R_2>\cdots>R_L\geq1.
-$$
+Una vez considerado lo anterior, la estrategia de descarte progresivo consiste en ir eliminando gradualmente las trayectorias menos prometedoras en cada ronda, hasta quedarse con un número reducido de candidatas que continúan la búsqueda.
 
 ### Regla de selección y continuidad de estado
 
@@ -296,7 +282,7 @@ $$
 \left(f_m^{(t)},m\right),
 $$
 
-primero por su evaluación $f_m^{(t)}$ (menor es mejor) y después por el índice de su rotación inicial $m$, que resuelve los empates de forma reproducible. Si la etapa siguiente admite $R$ trayectorias, continúan las primeras $R$ activas, o todas si quedan menos. Una trayectoria que ya terminó por paso pequeño o por límite de rondas no compite por una plaza.
+primero por su evaluación $f_m^{(t)}$ (menor es mejor) y después por el índice de su rotación inicial $m$, que resuelve los empates de forma reproducible. Si la etapa siguiente admite $R$ trayectorias, continúan las primeras $R$ activas de esa etapa.
 
 Una trayectoria superviviente debe conservar su estado completo:
 
@@ -306,14 +292,14 @@ Una trayectoria superviviente debe conservar su estado completo:
 
 Las supervivientes continúan desde su estado acumulado, sin volver a la rotación inicial ni reiniciar el paso o los contadores. Al finalizar el algoritmo retorna una única trayectoria ganadora.
 
-## Implementación de pattern search en el proyecto
+## Implementación de pattern search en la Herramienta de Selección
 
 - Se parte de varias rotaciones iniciales, que se canonicalizan antes de comenzar. La matriz $P$ y los bancos de direcciones para estimar las dos normas permanecen fijos durante la búsqueda, de modo que los candidatos se comparan bajo las mismas condiciones.
 - Cada trayectoria prueba rotaciones de Givens en ambos sentidos para cada par de coordenadas.
-- La búsqueda es **oportunista**: en cada ronda se acepta el primer giro cuyo valor estimado sea estrictamente menor que el valor corriente de esa trayectoria. Se dejan de probar sus otros giros en esa ronda para reducir las evaluaciones y el tiempo de cómputo.
+- La búsqueda es **oportunista**: en cada ronda se acepta el primer giro cuyo valor estimado sea estrictamente menor numero de condicion de esa trayectoria. Se dejan de probar sus otros giros en esa ronda para reducir las evaluaciones y el tiempo de cómputo.
 - Por defecto, el paso angular inicial es $\Delta_0=0.05$ radianes y el máximo es $\Delta_{\max}=0.25$ radianes. Después de una mejora el paso se duplica, sin superar el máximo; si no hay mejora se reduce a la mitad. Una trayectoria se detiene si el paso baja de $0.001$ o llega a 50 rondas. Los ejemplos pueden cambiar estos valores.
-- El **descarte progresivo es opcional**. En el ejemplo de dimensión 9 se comienza con 100 trayectorias, se conservan 25 tras la ronda 10 y 5 tras la ronda 30, con un límite de 50 rondas. En cada frontera se eligen las activas de menor valor corriente y, si hay empate, las de menor índice de origen. Las supervivientes mantienen su rotación, paso, contadores y orden de sondeo; no se reinician. Este ahorro de cómputo puede descartar una trayectoria que habría mejorado después.
-- Al terminar, se elige la trayectoria de menor valor estimado y se devuelve su rotación tal como quedó después del último giro aceptado, sin canonicalización ni reevaluación final. El resultado es un candidato local para una función estimada, no un mínimo global certificado.
+- **Descarte progresivo**: En el ejemplo de dimensión 9 se comienza con 100 trayectorias, se conservan 25 tras la ronda 10 y 5 tras la ronda 30, con un límite de 50 rondas. En cada frontera se eligen las activas de menor numero de condicion y, si hay empate, las de menor índice de origen.
+- Al terminar, se elige la trayectoria de menor valor estimado y se devuelve su rotación. El resultado es un candidato local para una función estimada, no un mínimo global garantizado.
 
 ## Ejemplos gráficos de reducción del número de condición
 

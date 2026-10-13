@@ -1,0 +1,548 @@
+---
+title: "Condition-Number Optimization: Problem Definition"
+author: ["Selection and Evaluation Team"]
+date: last-modified
+date-format: long
+lang: en
+format:
+  html:
+    toc: true
+    number-sections: true
+crossref:
+  title-delim: "."
+bibliography: ../subgradient_optimization_algorithm/references.bib
+nocite: |
+    @Conditio34:online
+---
+
+# Objective
+
+Optimize the condition number of the product $PQ$, where $P$ is the Cholesky
+factor of the reduced-form error covariance matrix and $Q$ is an orthogonal
+rotation, in order to recover well-conditioned structural shocks from a
+reduced-form VAR. This document gathers the problem definition: the condition
+number and its norms, the optimization problem over orthogonal matrices, the
+implications for the forecast-error decomposition of "Criteria for SVAR model
+selection: A proposal", and the supporting mathematical appendix.
+
+# Condition number
+
+Before proceeding to the next section, we will define the condition number of a
+matrix and its interpretation in terms of numerical sensitivity and matrix
+inversion. This concept is important for understanding the stability of
+numerical computations involving matrices, particularly in the context of
+solving linear systems and inverting matrices.
+
+## Definition
+
+The condition number of a nonsingular matrix measures the **sensitivity** of the solution of
+a linear system **to perturbations** in the data. For a system $Ax=b$, a large condition number in
+$A$ implies that small changes in $b$ may generate comparatively large changes
+in the solution $x$, whereas a value close to one indicates that the system is
+well conditioned. Importantly, conditioning is a property of the matrix itself
+rather than of the numerical algorithm used to solve the system.
+
+For any consistent matrix norm, the condition number is defined as
+
+$$
+\kappa_p(A)=\|A\|_p\|A^{-1}\|_p
+$${#eq-conditionNumber}
+
+with $\kappa_p(A)\geq 1$ for every nonsingular matrix, and $p$ denoting the matrix norm. If $A$
+is singular, its condition number is effectively infinite, reflecting the
+absence of a unique and numerically stable solution.
+
+
+
+::: {.callout-important}
+
+Consequently, matrices with condition numbers close to one are considered well
+conditioned, while very large values indicate near-singularity and greater
+numerical sensitivity when computing inverses or solving linear systems.
+
+:::
+
+
+Under the induced Euclidean norm ($\|\cdot\|_2$), the condition number can be expressed as
+
+$$
+\kappa_2(A)
+=
+\frac{\sigma_{\max}(A)}
+{\sigma_{\min}(A)},
+$$
+
+where $\sigma_{\max}(A)$ and $\sigma_{\min}(A)$ denote the largest and smallest singular values of $A$. Thus,
+a matrix becomes increasingly ill conditioned as its smallest singular value
+approaches zero. In the particular case of an **orthogonal** or unitary matrix, all
+singular values are equal to one and therefore
+
+$$
+\kappa_2(A)=1.
+$$
+
+For more details about the condition number using the $\ell_2$-norm, see
+@sec-singularValues.
+
+## Definitions for different norms
+
+The operator norm corresponding to the $p$-norm for vectors is:
+
+$$
+\|A\|_{p}
+=
+\max_{x\neq 0}
+\frac{\|Ax\|_{p}}{\|x\|_{p}}.
+$$
+
+### Norm $\ell_{\infty}$:
+
+$$
+\|A\|_{\infty}
+=
+\max_{1\leq i\leq m}
+\sum_{j=1}^{n}|a_{ij}|,
+$$
+
+which is simply the maximum absolute **row** sum of the matrix.
+
+### Norm $\ell_{1}$:
+
+In the cases $p=1$ the norm can be computed as:
+
+$$
+\|A\|_{1}
+=
+\max_{1\leq j\leq n}
+\sum_{i=1}^{m}|a_{ij}|,
+$$
+
+which is simply the maximum absolute **column** sum of the matrix; see @sec-proofNorms
+for proof of this result.
+
+
+
+
+# Optimization problem involving orthogonal matrices
+
+We now formally introduce the proposed approach for recovering structural shocks
+through orthogonal rotations of the Cholesky factor of the reduced-form error
+variance-covariance matrix.
+
+The admissible set is defined as
+
+$$
+\mathcal{O}(K)
+=
+\left\{
+Q\in\mathbb{R}^{K\times K}
+:
+Q'Q=QQ'=I
+\right\}.
+$$
+
+Combining the reduced-form covariance decomposition, the unit-variance
+normalization of the structural shocks, and the Cholesky identification, the key
+equations are the following. The reduced-form innovations $e_t$ of the SVAR
+satisfy
+
+$$
+e_t = B_0^{-1} w_t,
+$$
+
+with $w_t$ the vector of mutually independent structural shocks normalized to
+have identity variance-covariance matrix, $\Sigma_w = I$. Therefore, the
+reduced-form error covariance matrix is
+
+$$
+\Sigma_e
+=
+\mathbb{E}[e_t e_t']
+=
+B_0^{-1}\Sigma_w B_0^{-1'}
+=
+B_0^{-1}B_0^{-1'},
+$$
+
+and the benchmark recursive (Cholesky) identification sets $B_0^{-1}=P$, the
+lower-triangular Cholesky factor of $\Sigma_e$. In general, any orthogonal
+rotation $Q$ of $P$ delivers an equally valid factorization of $\Sigma_e$:
+
+$$
+\Sigma_e
+=
+B_0^{-1}B_0^{-1'}
+=
+PQQ'P'
+$$
+
+where $P$ is the Cholesky factor associated with the benchmark recursive
+identification, and $Q\in\mathcal{O}(K)$ is an orthogonal rotation matrix.
+
+Therefore, orthogonal rotations generate alternative structural decompositions
+that preserve the reduced-form variance-covariance matrix. This provides the
+basis for defining an optimization problem over $Q$ to select a structural
+decomposition according to the criterion of minimizing the condition number of
+$B_0^{-1}=PQ$.
+
+The optimization problem can be formulated as follows:
+
+$$
+Q^{*}= \text{argmin}_{Q\in\mathcal{O}(K)} \kappa_{p}(PQ),
+$${#eq-optimizationProblem}
+
+where $p\in\{1,4,\infty\}$. The case $p=2$ is excluded because, under the Euclidean norm, $\kappa_2(PQ)=\kappa_2(P)$;
+hence, the objective function does not depend on $Q$ (see @sec-singularValues).
+
+::: {.callout-note}
+For a complete exposition of the SVAR models and the standard notation
+conventions used in the project ($B_0$, $B_1$, $\psi$, $w_t$, $e_t$,
+$\Sigma_e$, and the Cholesky identification), see
+`OSST/docs/OSST_standard_svar_notation/OSST_standard_svar_notation.qmd` and
+`OSST/docs/svar_dogmatic_model/svar_dogmatic_model.qmd`.
+:::
+
+::: {.callout-tip}
+## In simple terms
+The idea is to find the orthogonal matrix $Q$ that minimizes the condition
+number of the product $B_0^{-1}=(PQ)$, which represents a rotated version of the Cholesky
+factor $P$. By minimizing the condition number in $\ell_{\infty}$ norm, we aim to improve
+the numerical stability of the resulting structural shocks and ensure that they
+are well-conditioned for subsequent analysis in different samples.
+:::
+
+## Properties of orthogonal matrices {#sec-orthogonalMatrices}
+
+An orthogonal matrix $Q$ is a real-valued square matrix whose columns and rows
+are orthonormal vectors.
+
+- **Orthogonality**: $Q'Q = QQ' = I.$
+
+- **Inverse**: $Q^{-1} = Q'.$
+
+- **Preservation of the Euclidean norm**: $\|Qx\|_2 = \|x\|_2.$
+
+- **Preservation of inner products**: $(Qx)'(Qy) = x'y.$
+
+- **Determinant**: $\det(Q) = \pm 1.$
+
+- **Singular values**: $\sigma_i(Q) = 1, \qquad \forall i.$
+
+- **Condition number under the 2-norm**: $\kappa_2(Q) = 1.$
+
+- **Eigenvalues**: $\left|\lambda_i(Q)\right| = 1.$
+
+- **Preservation of the identity matrix**: $QIQ' = I.$
+
+- **Preservation of covariance under orthogonal rotations**: 
+
+If
+
+  $$
+  \operatorname{Var}(\varepsilon)=I,
+  $$
+
+then
+
+  $$
+  \operatorname{Var}(Q\varepsilon)=I.
+  $$
+
+
+## Future Work: Numerical Optimization Methods
+
+* Investigate numerical optimization methods suitable for solving the
+  orthogonal-matrix optimization problem described above.
+
+* Compare alternative approaches for enforcing the orthogonality constraint $Q'Q=I$,
+  including:
+
+  * optimization using Givens-angle parameterizations;
+  * projected gradient methods;
+  * Riemannian gradient descent on the orthogonal group $\mathcal{O}(K)$;
+  * Riemannian trust-region methods.
+
+* Investigate numerical approaches for handling the non-smooth nature of the
+  infinity-norm condition number.
+
+
+* Investigate the use of multiple initial orthogonal matrices (*multi-start
+  optimization*) to reduce the risk of convergence to poor local minima.
+
+* Compare the numerical methods in terms of:
+
+  * convergence;
+  * computational cost;
+  * numerical stability;
+  * preservation of the orthogonality constraint;
+  * achieved value of $\kappa_\infty(PQ)$.
+
+* Determine which numerical optimization method is most appropriate for the
+  dimensions and restrictions considered in the project, and document the
+  selected algorithm and convergence criteria.
+
+
+## Singular values and $\ell_2$-norm {#sec-singularValues}
+
+For a square matrix $A$, the square roots of the eigenvalues of $A^HA$, where $A^H$
+is the conjugate transpose, are called singular values of $A$. The singular
+values are always non-negative and are usually denoted by $\sigma_i(A)$, where $i=1,\ldots,n$ for an
+$n\times n$ matrix. The singular values can be ordered as follows:
+$$
+\sigma_i(A)= \sqrt{\lambda_i(A^HA)},\qquad i=1,\ldots,n,
+$$
+
+By the definition of the $\ell_2$-norm, we have that
+
+$$
+\sigma_i(PQ) = \sqrt{\lambda_i(Q^HP^HPQ)} = \sqrt{\lambda_i(P^HP)} = \sigma_i(P),\qquad i=1,\ldots,n,
+$$
+
+where the second equality follows from the property of preservation of inner
+products of orthogonal matrices, see @sec-orthogonalMatrices. Therefore, we have
+that
+
+$$
+\sigma_{\max}(PQ) = \sigma_{\max}(P),\qquad \sigma_{\min}(PQ) = \sigma_{\min}(P),
+$$
+
+and then looking for a $Q$ that minimizes the condition number of $PQ$ is
+equivalent to minimizing the condition number of $P$, which is a constant. And
+this is a trivial result, because the condition number of $P$ is a constant and
+does not depend on $Q$.
+
+## Proof of the result for the $\ell_\infty$-norm and $\ell_1$-norm matrices {#sec-proofNorms}
+
+### $\ell_\infty$-norm
+
+**Proof:**
+
+Let
+
+$$
+\alpha
+=
+\max_{1\leq i\leq m}
+\sum_{j=1}^{n}|a_{ij}|.
+$$
+
+We have that
+
+$$
+\forall x\in \mathbb{R}^n
+\qquad
+\|Ax\|_{\infty}
+=
+\max_{1\leq i\leq m}
+\left|
+\sum_{j=1}^{n}a_{ij}x_j
+\right|
+\leq
+\max_{1\leq i\leq m}
+\sum_{j=1}^{n}
+|a_{ij}||x_j|
+$$
+
+$$
+\leq
+\max_{1\leq i\leq m}
+\sum_{j=1}^{n}
+|a_{ij}|\|x\|_{\infty}
+=
+\|x\|_{\infty}
+\max_{1\leq i\leq m}
+\sum_{j=1}^{n}|a_{ij}|
+=
+\|x\|_{\infty}\alpha.
+$$
+
+Therefore,
+
+$$
+\frac{\|Ax\|_{\infty}}{\|x\|_{\infty}}
+\leq
+\alpha
+\qquad
+\forall x\in \mathbb{R}^n\setminus\{0\}
+\Rightarrow
+\|A\|_{\infty}\leq\alpha.
+$$
+
+On the other hand, if we define
+
+$$
+k
+=
+\arg\max_{1\leq i\leq m}
+\sum_{j=1}^{n}|a_{ij}|
+$$
+
+If $\alpha=0$, then $A=0$ and the result follows immediately. Otherwise, define
+
+$$
+z=
+\begin{pmatrix}
+\operatorname{sgn}(a_{k1})\\
+\vdots\\
+\operatorname{sgn}(a_{kn})
+\end{pmatrix},
+$$
+
+we have that
+
+$$
+\|z\|_{\infty}=1
+$$
+
+and
+
+$$
+Az
+=
+\begin{pmatrix}
+\sum_{j=1}^{n}
+\operatorname{sgn}(a_{kj})a_{1j}
+\\
+\vdots
+\\
+\sum_{j=1}^{n}
+\operatorname{sgn}(a_{kj})a_{mj}
+\end{pmatrix},
+$$
+
+so that
+
+$$
+(Az)_k
+=
+\sum_{j=1}^{n}
+\operatorname{sgn}(a_{kj})a_{kj}
+=
+\sum_{j=1}^{n}|a_{kj}|
+=
+\alpha.
+$$
+
+Thus,
+
+$$
+\frac{\|Az\|_{\infty}}{\|z\|_{\infty}}
+\geq
+|(Az)_k|
+=
+\alpha
+\Rightarrow
+\|A\|_{\infty}\geq\alpha.
+$$
+
+Therefore,
+
+$$
+\|A\|_{\infty}
+=
+\alpha
+=
+\max_{1\leq i\leq m}
+\sum_{j=1}^{n}|a_{ij}|
+\qquad
+\square
+$$
+
+
+
+### $\ell_1$-norm
+
+
+**Proof:**
+
+Let
+
+$$
+\alpha
+=
+\max_{1\leq j\leq n}
+\sum_{i=1}^{m}|a_{ij}|.
+$$
+
+We have that
+
+$$
+\forall x\in \mathbb{R}^{n}
+\qquad
+\|Ax\|_{1}
+=
+\sum_{i=1}^{m}
+\left|
+\sum_{j=1}^{n}a_{ij}x_j
+\right|
+\leq
+\sum_{i=1}^{m}
+\sum_{j=1}^{n}
+|a_{ij}||x_j|
+$$
+
+$$
+=
+\sum_{j=1}^{n}
+\left(
+|x_j|
+\sum_{i=1}^{m}|a_{ij}|
+\right)
+\leq
+\sum_{j=1}^{n}|x_j|\alpha
+=
+\alpha
+\sum_{j=1}^{n}|x_j|
+=
+\alpha\|x\|_1
+\Rightarrow
+$$
+
+$$
+\Rightarrow
+\frac{\|Ax\|_1}{\|x\|_1}
+\leq
+\alpha
+\qquad
+\forall x\in \mathbb{R}^n\setminus\{0\}
+\Rightarrow
+\|A\|_1\leq\alpha.
+$$
+
+On the other hand, taking
+
+$$
+z=e_k,
+$$
+
+the $k$-th vector of the canonical basis of $\mathbb{R}^n$, with
+
+$$
+k
+=
+\arg\max_{1\leq j\leq n}
+\sum_{i=1}^{m}|a_{ij}|,
+$$
+
+we have that
+
+$$
+\frac{\|Az\|_1}{\|z\|_1}
+=
+\frac{\sum_{i=1}^{m}|a_{ik}|}{1}
+\overset{\text{def }k}{=}
+\alpha
+\overset{\text{def. induced norm}}{\Rightarrow}
+\|A\|_1\geq\alpha.
+$$
+
+Therefore,
+
+$$
+\|A\|_1
+=
+\alpha
+=
+\max_{1\leq j\leq n}
+\sum_{i=1}^{m}|a_{ij}|.
+$$
