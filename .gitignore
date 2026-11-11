@@ -26,3 +26,7 @@ Thumbs.db
 *.jpeg
 *.gif
 *.svg
+
+# Figures embedded in the Pattern Search document
+!docs/patter_search/pattern_search_cond4_2x2.png
+!docs/patter_search/pattern_search_cond4_3x3.png

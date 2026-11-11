@@ -1,12 +1,17 @@
 function qNorm4 = compute_4_norm(Q, options)
-%COMPUTE_4_NORM Estimate one induced 4-norm per matrix in SO(n).
+%COMPUTE_4_NORM Estimate one induced 4-norm per square matrix.
 %   Q is a real double n-by-n matrix or n-by-n-by-M array. The only
 %   output is an M-by-1 vector in the same order as Q(:,:,k).
 %   Each matrix uses independent random starts; no global maximum is certified.
+%   Membership in SO(n) is not verified: callers working with SO(n)
+%   matrices guarantee it by construction (see haar_so). The theoretical
+%   bounds 1 <= ||Q||_4 <= n^(1/4) hold only for SO(n) inputs.
 %   MaxWorkingMemoryMB (default 128) controls the estimated page block size.
 %   ScreenIterations > 0 is an optional approximate two-stage search: run
 %   every start briefly, then fully iterate only the NumFinalists strongest
 %   starts per matrix. Discarded starts may otherwise have won later.
+%   Screening runs in memory-bounded blocks; the gathered finalists are
+%   refined together in larger blocks without changing per-matrix results.
     if nargin < 2
         options = struct();
     end
@@ -17,17 +22,6 @@ function qNorm4 = compute_4_norm(Q, options)
     end
     n = size(Q, 1);
     numMatrices = size(Q, 3);
-    matrixTolerance = 1e-12*max(1,n);
-    % Validate the whole batch before consuming the random state.
-    for k = 1:numMatrices
-        matrix = Q(:,:,k);
-        if norm(matrix'*matrix-eye(n), 'fro') > matrixTolerance || ...
-                abs(det(matrix)-1) > matrixTolerance
-            error('compute_4_norm:NotSO', ...
-                'Q(:,:,%d) must belong to SO(n) within tolerance %.3e.', ...
-                k, matrixTolerance);
-        end
-    end
     defaults = struct('NumRandomStarts', 50, 'MaxIterations', 1000, ...
         'NormTolerance', 1e-10, 'StationarityTolerance', 1e-8, ...
         'FeasibilityTolerance', 1e-12, 'MaxWorkingMemoryMB', 128, ...
@@ -80,36 +74,56 @@ function qNorm4 = compute_4_norm(Q, options)
     blockSize = min(numMatrices, max(1, floor( ...
         options.MaxWorkingMemoryMB*2^20 / bytesPerPage)));
     qNorm4 = zeros(numMatrices, 1);
-    for first = 1:blockSize:numMatrices
-        indices = first:min(first+blockSize-1, numMatrices);
-        starts = randn(n, options.NumRandomStarts, numel(indices));
-        columns = reshape(starts, n, []);
-        zeroColumns = ~any(columns, 1);
-        while any(zeroColumns)
-            columns(:,zeroColumns) = randn(n, sum(zeroColumns));
-            zeroColumns = ~any(columns, 1);
-        end
-        starts = reshape(columns, n, options.NumRandomStarts, numel(indices));
-        if options.ScreenIterations == 0
-            candidates = power_norm4_multiple_starts(Q(:,:,indices), starts, options);
-            candidates(~isfinite(candidates)) = -Inf;
-            estimates = max(candidates, [], 1);
-        else
-            screeningOptions = options;
-            screeningOptions.MaxIterations = options.ScreenIterations;
+    if options.ScreenIterations > 0
+        % Two global phases: screen every start in memory-bounded blocks,
+        % then refine the gathered finalists in larger blocks. Per-page
+        % results do not depend on the block grouping, and the random
+        % stream is consumed in the same order as a per-block refinement.
+        screeningOptions = options;
+        screeningOptions.MaxIterations = options.ScreenIterations;
+        screenedAll = -Inf(options.NumRandomStarts, numMatrices);
+        finalistsAll = zeros(n, options.NumFinalists, numMatrices);
+        for first = 1:blockSize:numMatrices
+            indices = first:min(first+blockSize-1, numMatrices);
+            starts = random_starts(n, options.NumRandomStarts, numel(indices));
             screened = power_norm4_multiple_starts( ...
                 Q(:,:,indices), starts, screeningOptions);
             screened(~isfinite(screened)) = -Inf;
+            screenedAll(:,indices) = screened;
             [~, ranking] = sort(screened, 1, 'descend');
-            finalists = zeros(n, options.NumFinalists, numel(indices));
-            for page = 1:numel(indices)
-                finalists(:,:,page) = starts(:,ranking(1:options.NumFinalists,page),page);
-            end
-            refined = power_norm4_multiple_starts( ...
-                Q(:,:,indices), finalists, options);
-            refined(~isfinite(refined)) = -Inf;
-            estimates = max(max(screened, [], 1), max(refined, [], 1));
+            flatStarts = reshape(starts, n, []);
+            linearIds = ranking(1:options.NumFinalists,:) + ...
+                (0:numel(indices)-1)*options.NumRandomStarts;
+            finalistsAll(:,:,indices) = reshape(flatStarts(:,linearIds), ...
+                n, options.NumFinalists, numel(indices));
         end
+        finalistBytesPerPage = 8*(n*n + 32*n*options.NumFinalists + ...
+            16*options.NumFinalists);
+        finalistBlockSize = min(numMatrices, max(1, floor( ...
+            options.MaxWorkingMemoryMB*2^20 / finalistBytesPerPage)));
+        refinedAll = -Inf(options.NumFinalists, numMatrices);
+        for first = 1:finalistBlockSize:numMatrices
+            indices = first:min(first+finalistBlockSize-1, numMatrices);
+            refined = power_norm4_multiple_starts( ...
+                Q(:,:,indices), finalistsAll(:,:,indices), options);
+            refined(~isfinite(refined)) = -Inf;
+            refinedAll(:,indices) = refined;
+        end
+        estimates = max(max(screenedAll, [], 1), max(refinedAll, [], 1));
+        failed = find(~isfinite(estimates), 1);
+        if ~isempty(failed)
+            error('compute_4_norm:NoCandidate', ...
+                'No start produced a finite feasible candidate for Q(:,:,%d).', failed);
+        end
+        qNorm4 = estimates(:);
+        return;
+    end
+    for first = 1:blockSize:numMatrices
+        indices = first:min(first+blockSize-1, numMatrices);
+        starts = random_starts(n, options.NumRandomStarts, numel(indices));
+        candidates = power_norm4_multiple_starts(Q(:,:,indices), starts, options);
+        candidates(~isfinite(candidates)) = -Inf;
+        estimates = max(candidates, [], 1);
         failed = find(~isfinite(estimates), 1);
         if ~isempty(failed)
             error('compute_4_norm:NoCandidate', ...
@@ -117,10 +131,17 @@ function qNorm4 = compute_4_norm(Q, options)
         end
         qNorm4(indices) = estimates(:);
     end
-    if any(qNorm4 < 1-matrixTolerance | qNorm4 > n^(1/4)+matrixTolerance)
-        warning('compute_4_norm:BoundAnomaly', ...
-            'An estimate falls outside the theoretical bounds for SO(n).');
+end
+
+function starts = random_starts(n, numStarts, numMatrices)
+    starts = randn(n, numStarts, numMatrices);
+    columns = reshape(starts, n, []);
+    zeroColumns = ~any(columns, 1);
+    while any(zeroColumns)
+        columns(:,zeroColumns) = randn(n, sum(zeroColumns));
+        zeroColumns = ~any(columns, 1);
     end
+    starts = reshape(columns, n, numStarts, numMatrices);
 end
 
 function valid = valid_integer(value, minimum)

@@ -13,7 +13,7 @@ rng(42, 'twister');
 
 n = 9;
 numMatrices = 1000;
-startCounts = [1, 10, 25, 50, 100, 250, 500, 750, 1000];
+startCounts = [10, 25, 50, 75, 100, 250, 500, 750, 1000];
 baseOptions = struct('MaxIterations', 1000, 'MaxWorkingMemoryMB', 128);
 screenIterations = 2;
 numFinalists = 4;
