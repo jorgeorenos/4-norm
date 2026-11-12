@@ -2,16 +2,18 @@
 title: "Minimizing κ₄(PQ) via Pattern Search"
 subtitle: "General formulation, estimation with fixed starting points, and progressive refinement over SO(K)"
 format:
-  html:
-    toc: true
-    number-sections: true
-    code-fold: false
-    html-math-method: mathjax
   pdf:
-    toc: true
+    toc: false
     number-sections: true
 lang: en
 ---
+
+<!-- Before rendering this document, run docs/patter_search/plots.m in
+     MATLAB (e.g. matlab -batch "run('plots.m')" from this directory).
+     It reads docs/patter_search/data.mat and regenerates the four charts
+     referenced below (pattern_search_cond4_2x2.png, _3x3.png, _5x5.png,
+     _9x9.png) with English labels. Quarto does not run this
+     automatically; it must be done before `quarto render`. -->
 
 ## Purpose of this document
 
