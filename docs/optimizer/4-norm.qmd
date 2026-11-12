@@ -1,0 +1,395 @@
+---
+title: "Optimization of the induced 4-norm for matrices in SO(n)"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: false
+  pdf:
+    toc: true
+    number-sections: true
+lang: en
+---
+
+## Introduction
+
+The induced 4-norm measures how much a matrix can amplify a vector when both the input and the output are measured with the 4-norm. This document explains how to estimate that amplification for a rotation matrix $Q\in SO(n)$.
+
+The idea is to search for the input direction that produces the largest output norm. To do this, we start from several initial vectors, improve each one through a generalized power iteration, and keep the best result. This strategy is called *multistart*. The matrix $Q$ remains fixed throughout the search.
+
+First we explain why it suffices to work with unit 4-norm vectors. Then we pose the optimization problem and its Lagrangian, describe the iteration, and present examples in two and three dimensions. Finally, we study how the estimate changes as the number of starts increases.
+
+## Objective
+
+We consider a real matrix $Q$ that satisfies
+
+$$
+Q'Q=I_n,\qquad \det(Q)=1.
+$$
+
+These conditions define the set $SO(n)$. The symbol $Q'$ denotes the transpose of $Q$.
+
+The vector 4-norm is
+
+$$
+\|x\|_4=\left(\sum_{j=1}^{n}|x_j|^4\right)^{1/4}.
+$$
+
+From it, the induced norm of $Q$ is defined as
+
+$$
+\|Q\|_{4\to4}=\max_{x\ne0}\frac{\|Qx\|_4}{\|x\|_4}.
+$$
+
+The ratio compares the magnitude of the output with that of the input. Its maximum indicates the largest possible amplification. We will use $\|\cdot\|_4$ for vectors and $\|\cdot\|_{4\to4}$ for matrices. In the figure titles, $\|Q\|_4$ abbreviates this latter notation.
+
+### Why it suffices to consider unit 4-norm vectors
+
+If we multiply a vector by a nonzero scalar, both the input norm and the output norm change in the same proportion. Therefore, the ratio depends on the direction of the vector but not on its size.
+
+For any $x\ne0$, we can form the normalized vector
+
+$$
+z=\frac{x}{\|x\|_4},
+\qquad \|z\|_4=1.
+$$
+
+Applying $Q$ to this vector,
+
+$$
+\|Qz\|_4
+=\left\|Q\frac{x}{\|x\|_4}\right\|_4
+=\frac{\|Qx\|_4}{\|x\|_4}.
+$$
+
+Thus, normalizing the input preserves the value we want to maximize. We can search only among the vectors of the unit sphere
+
+$$
+S_4=\{x\in\mathbb{R}^n:\|x\|_4=1\},
+$$
+
+and write the problem as
+
+$$
+\|Q\|_{4\to4}=\max_{\|x\|_4=1}\|Qx\|_4.
+$$
+
+The constraint also bounds the search: since $\sum_j|x_j|^4=1$, no component can have an absolute value greater than 1. On this closed and bounded set, the output norm changes continuously, so a finite maximum exists.
+
+Without that constraint, maximizing $\|Qx\|_4$ alone would allow the result to grow indefinitely by making the input vector larger and larger. Fixing its norm at 1 allows directions to be compared on equal footing.
+
+## Geometry of the problem
+
+The sphere $S_4$ consists of the vectors with 4-norm equal to 1. In two dimensions it is a closed curve, and in three dimensions it is a surface. The 4-norm ball additionally includes the points in its interior.
+
+A rotation preserves Euclidean lengths, angles, and volume, but it generally changes the 4-norm. For this reason, even though $x$ belongs to $S_4$, its image $Qx$ may have a 4-norm greater or smaller than 1. We will call the value
+
+$$
+a(x)=\|Qx\|_4,\qquad x\in S_4.
+$$
+
+the *amplitude*.
+
+An amplitude greater than 1 indicates amplification in the 4-norm; one smaller than 1 indicates contraction in that norm. The Euclidean length is preserved in both cases.
+
+### Example: $Q$ in $SO(2)$
+
+To traverse $S_4$, we take directions at different angles and normalize them:
+
+$$
+d(\theta)=
+\begin{bmatrix}\cos\theta\\ \sin\theta\end{bmatrix},
+\qquad
+x(\theta)=\frac{d(\theta)}{\|d(\theta)\|_4},
+\qquad 0\leq\theta<2\pi.
+$$
+
+![Geometry of the 4-norm in dimension 2](figures/generated/optimizer-geometry-2d.png){fig-alt="Three panels: the S4 sphere, its rotated image, and the angular amplitude."}
+
+The first panel shows $S_4$. The second overlays the original curve and its rotated image $Q(S_4)$. The third shows how the amplitude changes with the input angle.
+
+The rotated curve can coincide with the original one for special rotations, such as those whose angle is a multiple of $\pi/2$. For a general rotation, the amplitude varies, and several directions of maximum amplification can appear. The transformed vectors are shown without renormalizing them, in order to preserve that information.
+
+### Example: $Q$ in $SO(3)$
+
+In three dimensions, directions described by two angles are taken, normalized to unit 4-norm, and the surface is colored according to its amplitude.
+
+![4-norm sphere in dimension 3 colored by amplitude](figures/generated/optimizer-geometry-3d.png){fig-alt="Three-dimensional S4 surface colored according to the amplitude of the 4-norm."}
+
+The shape of the surface represents $S_4$, and the color indicates how much $Q$ amplifies each direction. The colors associated with high values on the color bar mark the regions of greatest amplitude.
+
+The examples for $SO(2)$ and $SO(3)$ show how the 4-norm behaves under rotations, making it clear that there is more than one direction that maximizes the amplification in the 4-norm.
+
+## Optimization problem
+
+We want to find a unit 4-norm vector whose image has the largest possible 4-norm:
+
+$$
+\max_{x\in\mathbb{R}^n}\|Qx\|_4
+\quad\text{subject to}\quad \|x\|_4=1.
+$$
+
+### Expressing the objective and the constraint without roots
+
+Since the values of a norm are nonnegative, raising them to the fourth power preserves their order: the vector that maximizes $\|Qx\|_4$ also maximizes $\|Qx\|_4^4$. This makes it possible to work with a sum of powers, eliminating the fourth root.
+
+$$
+f(x)=\|Qx\|_4^4=\sum_{j=1}^{n}(Qx)_j^4.
+$$
+
+The constraint is written in the same way:
+
+$$
+h(x)=\|x\|_4^4-1=\sum_{i=1}^{n}x_i^4-1=0.
+$$
+
+The equivalent problem is
+
+$$
+\max_x f(x)\quad\text{subject to}\quad h(x)=0.
+$$
+
+Once the maximum value of $f$ is obtained, taking its fourth root recovers the induced norm.
+
+### Building the Lagrangian
+
+The Lagrangian incorporates the constraint into the derivative calculation by means of a scalar multiplier $\lambda$:
+
+$$
+\mathcal{L}(x,\lambda)=f(x)-\lambda h(x).
+$$
+
+In this case,
+
+$$
+\mathcal{L}(x,\lambda)
+=\sum_{j=1}^{n}(Qx)_j^4
+-\lambda\left(\sum_{i=1}^{n}x_i^4-1\right).
+$$
+
+The idea is to look for a point where it is no longer possible to improve the objective with a small change that keeps the input norm equal to 1. At that point, the gradients of the objective and of the constraint are proportional; $\lambda$ expresses that proportion.
+
+### Computing the gradients
+
+If $q_j'$ is row $j$ of $Q$, then $(Qx)_j=q_j'x$. Differentiating the objective function with respect to a component $x_i$,
+
+$$
+\frac{\partial f}{\partial x_i}
+=4\sum_{j=1}^{n}(Qx)_j^3q_{ji},
+$$
+
+where $q_{ji}$ is the entry of $Q$ in row $j$ and column $i$. Gathering the derivatives into a vector,
+
+$$
+\nabla f(x)=4Q'(Qx)^{\odot3},
+\qquad
+\nabla h(x)=4x^{\odot3}.
+$$
+
+The notation $(\cdot)^{\odot3}$ indicates that each component is raised to the cube. All vectors are treated as column vectors.
+
+### Obtaining the stationarity condition
+
+Setting the gradient of the Lagrangian with respect to $x$ to zero and keeping the constraint, we obtain
+
+$$
+\nabla f(x)-\lambda\nabla h(x)=0,
+\qquad \|x\|_4=1.
+$$
+
+After substituting the gradients and canceling the factor of 4,
+
+$$
+Q'(Qx)^{\odot3}=\lambda x^{\odot3}.
+$$
+
+A vector that satisfies this relation is a stationary point of the constrained problem. To identify the multiplier, we multiply both sides by $x'$:
+
+$$
+x'Q'(Qx)^{\odot3}=\lambda x'x^{\odot3}.
+$$
+
+The left-hand side is the sum of the fourth powers of the components of $Qx$. On the right-hand side, $x'x^{\odot3}=\sum_i x_i^4=1$. Therefore,
+
+$$
+\lambda=\|Qx\|_4^4.
+$$
+
+The final condition is
+
+$$
+Q'(Qx)^{\odot3}=\|Qx\|_4^4x^{\odot3}.
+$$
+
+This relation guides the iteration described below.
+
+### What this condition tells us
+
+The equation allows us to recognize points where the objective stops changing to first order on $S_4$. However, such points can be local maxima, local minima, or saddle points. A local maximum has an amplitude at least as large as that of nearby directions; a global maximum satisfies that comparison against every possible direction.
+
+Several vectors can also share the same maximum amplitude. For example, because of the symmetry of our search space, $x$ and $-x$ can produce the same output norm. For this reason, finding a stationary point is not enough to guarantee that the global maximum has been found.
+
+## Optimization algorithm
+
+The generalized power iteration uses the condition above to update the input vector. Repeating it from several starts makes it possible to explore different regions of the sphere. The power method for estimating induced norms is studied in references [1](https://doi.org/10.1016/0024-3795(74)90029-9) and [2](https://nhigham.com/wp-content/uploads/2023/09/high92e.pdf).
+
+### Choosing several initial points
+
+$N$ random vectors are generated, and each one is normalized to unit 4-norm. For example, vectors with Gaussian components can be taken and divided by their 4-norm^[In the exercises shown in the following sections, this is the mechanism used to generate the initial points.]. This produces valid points on $S_4$, although it does not guarantee a uniform distribution over the surface.
+
+Each start gives rise to a sequence of updates. All of them use the same matrix $Q$. The matrices in the examples are sampled with the Haar distribution, which makes it possible to choose rotations without favoring any particular orientation [6](https://arxiv.org/abs/math-ph/0609050).
+
+### Updating the vector
+
+From an initial point $x_0\in S_4$, the following steps are repeated:
+
+1. Compute the image of the current vector:
+   $$
+   y_k=Qx_k.
+   $$
+
+2. Form the vector associated with the gradient:
+   $$
+   v_k=Q'(y_k^{\odot3}).
+   $$
+
+3. Take the real cube root of each component:
+   $$
+   (u_k)_i=\operatorname{sign}((v_k)_i)\,|(v_k)_i|^{1/3}.
+   $$
+   keeping the sign of each component.
+
+4. Normalize the result:
+   $$
+   x_{k+1}=\frac{u_k}{\|u_k\|_4}.
+   $$
+   so the new vector again has unit 4-norm.
+
+5. Evaluate the new amplitude:
+   $$
+   a_{k+1}=\|Qx_{k+1}\|_4.
+   $$
+   The vector with the largest amplitude found during the sequence is kept, including the initial point.
+
+The cube root and the normalization follow the shape of the stationarity equation: if $v=\lambda x^{\odot3}$, with $\lambda=\|Qx\|_4^4>0$, taking the cube root produces a positive multiple of $x$, and normalizing it returns the same vector.
+
+### Deciding when to stop
+
+The iteration stops when three checks are satisfied:
+
+- The amplitude changes very little between two consecutive steps.
+- The stationarity equation is approximately satisfied.
+- The 4-norm of the vector remains close to 1.
+
+The second check is based on the residual
+
+$$
+r(x)=Q'(Qx)^{\odot3}-\|Qx\|_4^4x^{\odot3}.
+$$
+
+A small residual relative to the size of the terms indicates that the vector is close to satisfying the equation. For the comparisons presented here, tolerances of $10^{-10}$ are used for the relative change in amplitude, $10^{-8}$ for the relative residual, and $10^{-12}$ for the error in the input norm.
+
+A maximum number of iterations is also fixed. If that limit is reached, the best candidate found is kept, while noting that the sequence did not satisfy all of the stopping criteria^[In our examples that limit is 1000 iterations.].
+
+### Choosing the final result
+
+After repeating the procedure from every start, the candidate with the largest amplitude, denoted $\widehat{x}$, is chosen. The estimate is
+
+$$
+\widehat{\nu}=\|Q\widehat{x}\|_4.
+$$
+
+This value does not exceed the exact induced norm if $\widehat{x}$ has unit 4-norm. For a matrix in $SO(n)$, the exact norm lies between
+
+$$
+1\leq\|Q\|_{4\to4}\leq n^{1/4}.
+$$
+
+These bounds serve as a reference for checking the results. Lying within the interval, or satisfying the stopping criteria, does not guarantee that the largest possible amplitude has been found.
+
+## Examples of the optimization algorithm
+
+In each example, the estimate and the numerical comparison use the same matrix $Q$. We denote by $\widehat{x}$ the method's candidate; the label $x^*$ in the figures refers to this candidate and does not imply that it is a global maximum.
+
+### Matrix $Q$ in $SO(2)$
+
+50 random starts are used, and the result is compared with a grid of 10,000 angles. The directions of greatest amplitude detected on the grid are refined through a local search to obtain a more precise reference.
+
+![Estimate of the induced 4-norm in SO(2)](figures/generated/optimizer-result-2d.png){fig-alt="Angular amplitude with the power method's candidate marked."}
+
+The blue line shows the amplitude over the angular grid. The orange circle marks the angle of $\widehat{x}$ and the amplitude obtained by the multistart method. A small difference between this value and the reference indicates agreement between both procedures; although the finite grid gives good results for matrices $Q$ of small dimension, extending it to larger matrices may require a larger number of points to capture all the relevant directions.
+
+### Matrix $Q$ in $SO(3)$
+
+100 random starts are used, together with a grid of 181 azimuth angles by 91 polar angles.
+
+![Estimate of the induced 4-norm in SO(3)](figures/generated/optimizer-result-3d.png){fig-alt="S4 surface colored by amplitude with the refined maximum and the power method's candidate."}
+
+The orange marker indicates the reference candidate, and the black circle indicates $\widehat{x}$. Both markers overlap approximately.
+
+## Convergence analysis
+
+In addition to reviewing the evolution of each sequence, it is of interest to observe what happens as the number of starts increases. To compare results, each matrix $Q$ is kept fixed, and the first $N$ directions from the same list of initial points are reused.
+
+We denote by $\widehat{\nu}_N(Q)$ the best amplitude obtained with $N$ starts. As more directions are added, the best estimate should not decrease, except for small rounding differences.
+
+The curves on the left show this estimate. Those on the right show its relative gap compared with the result for 1000 starts:
+
+$$
+\delta_N(Q)=
+\frac{\widehat{\nu}_{1000}(Q)-\widehat{\nu}_N(Q)}
+     {\widehat{\nu}_{1000}(Q)}.
+$$
+
+A small gap indicates that the additional starts examined contributed little improvement. The reference value for 1000 starts is itself an estimate, so this comparison does not measure the error relative to the exact norm.
+
+Ten matrices per dimension are studied, together with the following numbers of starts:
+
+$$
+N\in\{1,2,5,10,25,50,100,250,500,750,1000\}.
+$$
+
+In this analysis, each sequence has a limit of 1000 iterations and uses the tolerances indicated above. The figures allow us to compare how much the estimate improves as the search is widened in each dimension.
+
+### Matrices in $SO(2)$
+
+Convergence happens extremely fast in $SO(2)$, reflecting the simplicity of the geometry in low dimensions.
+
+![Convergence of the induced 4-norm for Haar matrices in SO(2)](figures/convergence_analysis/convergence-analysis-so2.png){fig-alt="Two panels for ten matrices in SO(2): cumulative estimate of the induced 4-norm and relative gap with respect to 1000 starts."}
+
+### Matrices in $SO(5)$
+
+Convergence in $SO(5)$ is slower than in $SO(2)$, but it is still observed that the estimate of the induced 4-norm improves consistently as the number of random starts increases.
+
+Convergence in $SO(5)$ occurs with approximately 25 random starts.
+
+![Convergence of the induced 4-norm for Haar matrices in SO(5)](figures/convergence_analysis/convergence-analysis-so5.png){fig-alt="Two panels for ten matrices in SO(5): cumulative estimate of the induced 4-norm and relative gap with respect to 1000 starts."}
+
+### Matrices in $SO(9)$
+
+Convergence in $SO(9)$ is even slower, reflecting the greater complexity of the geometry in intermediate dimensions. Again, convergence occurs with approximately 25 random starts.
+
+![Convergence of the induced 4-norm for Haar matrices in SO(9)](figures/convergence_analysis/convergence-analysis-so9.png){fig-alt="Two panels for ten matrices in SO(9): cumulative estimate of the induced 4-norm and relative gap with respect to 1000 starts."}
+
+### Matrices in $SO(17)$
+
+In $SO(17)$ convergence is much slower, generally requiring 100 random starts^[Only one of the $Q$ matrices required approximately 250 starts.].
+
+![Convergence of the induced 4-norm for Haar matrices in SO(17)](figures/convergence_analysis/convergence-analysis-so17.png){fig-alt="Two panels for ten matrices in SO(17): cumulative estimate of the induced 4-norm and relative gap with respect to 1000 starts."}
+
+The above shows that the multistart estimation algorithm does not require an excessive number of random
+starts to obtain reliable estimates of the induced 4-norm.
+
+## References
+
+[1] D. W. Boyd, "The power method for $\ell^p$ norms", *Linear Algebra and its Applications*, vol. 9, pp. 95–101, 1974. DOI: [10.1016/0024-3795(74)90029-9](https://doi.org/10.1016/0024-3795(74)90029-9).
+
+[2] N. J. Higham, "Estimating the matrix $p$-norm", *Numerische Mathematik*, vol. 62, pp. 539–555, 1992. [Author's manuscript](https://nhigham.com/wp-content/uploads/2023/09/high92e.pdf).
+
+[3] J. M. Hendrickx and A. Olshevsky, "Matrix $p$-norms are NP-hard to approximate if $p\neq1,2,\infty$", *SIAM Journal on Matrix Analysis and Applications*, vol. 31, no. 5, pp. 2802–2812, 2010. DOI: [10.1137/09076773X](https://doi.org/10.1137/09076773X). [Preprint](https://arxiv.org/abs/0908.1397).
+
+[4] A. Bhaskara and A. Vijayaraghavan, "Approximating Matrix $p$-norms", in *Proceedings of the Twenty-Second Annual ACM-SIAM Symposium on Discrete Algorithms (SODA)*, 2011, pp. 497–511. DOI: [10.1137/1.9781611973082.40](https://doi.org/10.1137/1.9781611973082.40). [Preprint](https://arxiv.org/abs/1001.2613).
+
+[5] Pham Dinh Tao, "Convergence of a subgradient method for computing the bound norm of matrices", *Linear Algebra and its Applications*, vol. 62, pp. 163–182, 1984. DOI: [10.1016/0024-3795(84)90093-4](https://doi.org/10.1016/0024-3795(84)90093-4).
+
+[6] F. Mezzadri, "How to generate random matrices from the classical compact groups", *Notices of the AMS*, vol. 54, no. 5, pp. 592–604, 2007. [Preprint](https://arxiv.org/abs/math-ph/0609050).
